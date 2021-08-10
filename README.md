@@ -1,6 +1,6 @@
 # dnahide
 
-**In-progress! Only the forward pass is implemented**
+**In-progress! GenBank format and provided authenticated data unsupported yet**
 
 Hide data in GenBank DNA sequence files with authenticated encryption.
 
@@ -12,7 +12,6 @@ Input data goes through the following process:
     - TODO: Drop in key derivation function instead of using sha256 of password
     - TODO: Add unauthenticated version that uses RC6 in another mode.
 3. Base64 encode using character-level mapping of base64->3-letter codon.
-    - TODO: Fix decoding DNA->base64
     - TODO: Enable base64 index shuffling
 4. Create GenBank DNA sequence file format and overlay stegged DNA.
     - TODO: Randomly generate metadata
