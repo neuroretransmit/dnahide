@@ -1,10 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <cstring>
 #include <string>
 #include <vector>
 
 #include <boost/algorithm/string/join.hpp>
+
+#include "types.h"
 
 using namespace std;
 namespace ba = boost::algorithm;
@@ -28,17 +31,15 @@ namespace dna64
         "AGC", "TAT", "TAC", "TGG", "CAA", "CAG", "AAT", "AAC", "CAT", "CAC", "GAA", "GAG", "GAT",
         "GAC", "AAA", "AAG", "CGT", "CGC", "CGA", "CGG", "AGA", "AGG", "TAA", "TAG", "TGA"};
 
-    string encode(const char* bytes)
+    string encode(const vector<u8>& bytes)
     {
-        assert(bytes != NULL && "dna64::encode(bytes): bytes was null");
         string encoded;
-        string control;
         int i = 0, j = 0;
         unsigned char chunk3b[3], chunk4b[4];
-        size_t bytes_len = strlen(bytes);
-
+        size_t bytes_len = bytes.size();
+        int bytes_idx = 0;
         while (bytes_len--) {
-            chunk3b[i++] = *(bytes++);
+            chunk3b[i++] = bytes[bytes_idx++];
 
             if (i == 3) {
                 chunk4b[0] = (chunk3b[0] & 0xfc) >> 2;
@@ -47,7 +48,6 @@ namespace dna64
                 chunk4b[3] = chunk3b[2] & 0x3f;
                 for (i = 0; i < 4; i++) {
                     encoded += codons[chunk4b[i]];
-                    control += b64_idx[chunk4b[i]];
                 }
                 i = 0;
             }
@@ -61,11 +61,8 @@ namespace dna64
             chunk4b[3] = chunk3b[2] & 0x3f;
             for (j = 0; j < i + 1; j++) {
                 encoded += codons[chunk4b[j]];
-                control += b64_idx[chunk4b[i]];
             }
         }
-
-        cerr << "Control: " << control << endl;
 
         return encoded;
     }
@@ -74,15 +71,17 @@ namespace dna64
     {
         int num_substr = str.length() / len;
         vector<string> split;
-        for (auto i = 0; i < num_substr; i++)
+        string base64;
+        for (auto i = 0; i <= num_substr; i++)
             split.push_back(str.substr(i * len, len));
-        // If there are leftover characters, create a shorter item at the end.
-        if (str.length() % len != 0)
-            split.push_back(str.substr(len * num_substr));
-        for (size_t i = 0; i < b64_idx.length(); i++)
-            replace(split.begin(), split.end(), string{codons[i]}, string{b64_idx[i]});
-        string base64 = strip(ba::join(split, ""));
-        while (((4 - base64.length() % 4) % 4))
+        for (const string& codon : split) {
+            vector<string>::const_iterator itr = find(codons.begin(), codons.end(), codon);
+            //             if (itr != codons.end())
+            base64 += b64_idx[distance(codons.begin(), itr)];
+        }
+        //         auto it = std::prev( your_vector.end() );
+        //         base64 += b64_idx[distance(codons.begin(), codons.end())];
+        while ((4 - base64.length() % 4) % 4)
             base64 += '=';
         return base64;
     }
@@ -136,7 +135,6 @@ namespace dna64
     string decode(const string& data)
     {
         string decoded = to_b64(data, 3);
-        cerr << "Decoded: " << decoded << endl;
         return b64_decode(decoded);
     }
 }; // namespace dna64

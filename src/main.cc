@@ -26,6 +26,12 @@ static inline bool file_exists(const string& fname)
     return (stat(fname.c_str(), &buffer) == 0);
 }
 
+size_t filesize(const char* filename)
+{
+    ifstream in(filename, ifstream::ate | ifstream::binary);
+    return in.tellg();
+}
+
 static void help(const po::options_description& desc)
 {
     cout << "DNAHide - Hide messages in DNA" << endl << desc << endl;
@@ -41,17 +47,17 @@ static string read_file(const string& path)
     return string{istreambuf_iterator<char>{input_file}, {}};
 }
 
-static void compress_memory(void* data, size_t data_size, vector<uint8_t>& out_data)
+static void compress_memory(void* data, size_t data_size, vector<u8>& out_data)
 {
     vector<uint8_t> buffer;
 
     const size_t BUFSIZE = 128 * 1024;
-    uint8_t temp_buffer[BUFSIZE];
+    u8 temp_buffer[BUFSIZE];
 
     z_stream strm;
     strm.zalloc = 0;
     strm.zfree = 0;
-    strm.next_in = reinterpret_cast<uint8_t*>(data);
+    strm.next_in = reinterpret_cast<u8*>(data);
     strm.avail_in = data_size;
     strm.next_out = temp_buffer;
     strm.avail_out = BUFSIZE;
@@ -84,11 +90,45 @@ static void compress_memory(void* data, size_t data_size, vector<uint8_t>& out_d
     out_data.swap(buffer);
 }
 
+int decompress_memory(const void* data, int data_len, vector<u8>& out_data)
+{
+    z_stream strm;
+    strm.total_in = strm.avail_in = data_len;
+    strm.total_out = strm.avail_out = out_data.size();
+    strm.next_in = (u8*) data;
+    strm.next_out = out_data.data();
+
+    strm.zalloc = Z_NULL;
+    strm.zfree = Z_NULL;
+    strm.opaque = Z_NULL;
+
+    int err = -1;
+    int ret = -1;
+
+    err = inflateInit2(
+        &strm, (15 + 32)); // 15 window bits, and the +32 tells zlib to to detect if using gzip or zlib
+    if (err == Z_OK) {
+        err = inflate(&strm, Z_FINISH);
+        if (err == Z_STREAM_END) {
+            ret = strm.total_out;
+        } else {
+            inflateEnd(&strm);
+            return err;
+        }
+    } else {
+        inflateEnd(&strm);
+        return err;
+    }
+
+    inflateEnd(&strm);
+    return ret;
+}
+
 static void encrypt(vector<u8>& data, const string& password)
 {
-    cerr << "Encrypting data..." << endl;
+    cerr << "[*] Encrypting data..." << endl;
     // Additional authenticated data is the SHA256 of input file
-    vector<u8> aad = sha256((char*) data.data());
+    vector<u8> aad(32, 0);
     // TODO: Use a key derivation function
     vector<u8> key_generating_key = sha256((char*) password.data());
     // Create AEAD using RC6
@@ -96,11 +136,11 @@ static void encrypt(vector<u8>& data, const string& password)
     aead.seal(data, aad);
 }
 
-__attribute__((unused)) static void decrypt(vector<u8>& data, const string& password)
+static void decrypt(vector<u8>& data, const string& password)
 {
-    cerr << "Decrypting data..." << endl;
+    cerr << "[*] Decrypting data..." << endl;
     // Additional authenticated data is the SHA256 of input file
-    vector<u8> aad = sha256((char*) data.data());
+    vector<u8> aad(32, 0);
     // TODO: Use a key derivation function
     vector<u8> key_generating_key = sha256((char*) password.data());
     // Create AEAD using RC6
@@ -110,10 +150,49 @@ __attribute__((unused)) static void decrypt(vector<u8>& data, const string& pass
 
 static void steg_data(string password, string input_file, string output_file)
 {
-    string data = "";
+    string data;
     vector<u8> compressed;
     vector<u8> encrypted;
     string dna;
+    ofstream ofs;
+
+    if (input_file != "") {
+        if (file_exists(input_file)) {
+            cerr << "[*] File size: " << filesize(input_file.c_str()) << " bytes" << endl;
+            data = read_file(input_file);
+        } else {
+            cerr << "ERROR: File '" << input_file << "' does not exist.\n";
+            exit(ERROR_IN_COMMAND_LINE);
+        }
+    } else {
+        cout << "<<< BEGIN STEGGED MESSAGE (Press CTRL+D when done) >>>\n\n";
+        for (string line; getline(cin, line);)
+            data += line + "\n";
+        cout << endl << "<<< END STEGGED MESSAGE >>>\n\n";
+        cout << endl;
+    }
+
+    cerr << "[*] Compressing..." << endl;
+    compress_memory((void*) data.data(), data.size(), compressed);
+
+    if (password != "")
+        encrypt(encrypted = compressed, password);
+
+    cerr << "[*] Encoding DNA..." << endl;
+    dna = dna64::encode(password != "" ? encrypted : compressed);
+
+    if (output_file != "") {
+        ofs = ofstream(output_file);
+        ofs << dna;
+        ofs.close();
+    } else {
+        cout << endl << dna << endl;
+    }
+}
+
+static void unsteg_data(string password, string input_file, string output_file)
+{
+    string data = "";
     ofstream ofs;
 
     if (input_file != "") {
@@ -124,53 +203,32 @@ static void steg_data(string password, string input_file, string output_file)
             exit(ERROR_IN_COMMAND_LINE);
         }
     } else {
-        cout << "<<< BEGIN MESSAGE (Press CTRL+D when done) >>>\n\n";
+        cout << "<<< BEGIN DNA SEQUENCE MESSAGE (Press CTRL+D when done) >>>\n\n";
         for (string line; getline(cin, line);)
             data += line + "\n";
+        cout << endl << "<<< END DNA SEQUENCE MESSAGE >>>\n\n";
     }
 
-    cerr << "Compressing..." << endl;
-    compress_memory((void*) data.data(), data.size(), compressed);
+    cerr << "[*] Decoding DNA..." << endl;
+    data = dna64::decode(data);
+    vector<u8> decrypted(data.begin(), data.end());
+    decrypt(decrypted, password);
 
-    if (password != "")
-        encrypt(encrypted = compressed, password);
-
-    cerr << "Encoding DNA..." << endl;
-    dna = dna64::encode((char*) (password != "" ? encrypted.data() : compressed.data()));
+    cerr << "[*] Decompressing data..." << endl;
+    vector<u8> decompressed(data.size() * 10);
+    decompress_memory(decrypted.data(), decrypted.size(), decompressed);
 
     if (output_file != "") {
         ofs = ofstream(output_file);
-        ofs << dna << endl;
+        ofs << decompressed.data();
         ofs.close();
     } else {
-        cout << dna << endl;
+        cout << endl
+             << "<<< BEGIN RECOVERED MESSAGE >>>" << endl
+             << endl
+             << decompressed.data() << endl
+             << "<<< END RECOVERED MESSAGE >>>" << endl;
     }
-}
-
-static void unsteg_data(__attribute__((unused)) string password, string input_file,
-                        __attribute__((unused)) string output_file)
-{
-    string data = "";
-
-    if (input_file != "") {
-        if (file_exists(input_file)) {
-            data = read_file(input_file);
-        } else {
-            cerr << "ERROR: File '" << input_file << "' does not exist.\n";
-            exit(ERROR_IN_COMMAND_LINE);
-        }
-    } else {
-        cout << "<<< BEGIN MESSAGE (Press CTRL+D when done) >>>\n\n";
-        for (string line; getline(cin, line);)
-            data += line + "\n";
-    }
-
-    data = dna64::decode(data);
-    cout << data << endl;
-
-    // Decode dna64
-    // Decrypt
-    // Decompress
 }
 
 int main(int argc, char** argv)
