@@ -2,6 +2,7 @@
 #include <iostream>
 #include <string>
 #include <sys/stat.h>
+#include <random>
 #include <vector>
 
 #include <zlib.h>
@@ -34,7 +35,7 @@ size_t filesize(const char* filename)
 
 static void help(const po::options_description& desc)
 {
-    cout << "DNAHide - Hide messages in DNA" << endl << desc << endl;
+    cout << "dnahide - hide messages in DNA" << endl << desc << endl;
 }
 
 static string read_file(const string& path)
@@ -148,13 +149,52 @@ static void decrypt(vector<u8>& data, const string& password)
     aead.open(data, aad);
 }
 
-static void steg_data(string password, string input_file, string output_file)
+
+static string create_genbank_flatfile(const string& dna)
+{
+    stringstream ss;
+    random_device rd; // obtain a random number from hardware
+    mt19937 gen(rd()); // seed the generator
+    uniform_int_distribution<> distr(0000000, 9999999); // define the range
+    int accession = distr(gen);
+
+//     size_t i = 1;
+    ss << setw(12) << left << "LOCUS" << "GXP_" << accession << "(PAX6/human)    1105 bp    DNA" << endl
+        << setw(12) << left << "ACCESSION" << "GXP_" << accession << endl
+        << setw(14) << left << "BASE COUNT" 
+        << setw(3) << left << count(dna.begin(), dna.end(), 'A') << " a "
+        << setw(3) << left << count(dna.begin(), dna.end(), 'C') << " c "
+        << setw(3) << left << count(dna.begin(), dna.end(), 'G') << " g "
+        << setw(3) << left << count(dna.begin(), dna.end(), 'T') << " t "<< endl
+        << "ORIGIN" << endl;
+    
+    int len = 10;
+    int num_substr = dna.length() / len;
+    vector<string> split;
+    for (auto i = 0; i <= num_substr; i++)
+        split.push_back(dna.substr(i * len, len));
+    
+    size_t j = 0;
+    for (size_t i = 0; i < split.size(); i++) {
+        ss << setw(9) << right << j + 1 << " ";
+        for (j = 0; i < split.size(); j += 10, i += 1) {
+            
+            if (j != 0 && !(j % 60)) {
+                ss << endl << setw(9) << right << j + 1 << " ";
+            }
+            ss << setw(2) << split[i++] << " ";
+        }
+    }
+    
+    return ss.str();
+}
+
+static void steg_data(const string& password, const string& input_file, const string& output_file)
 {
     string data;
     vector<u8> compressed;
     vector<u8> encrypted;
     string dna;
-    ofstream ofs;
 
     if (input_file != "") {
         if (file_exists(input_file)) {
@@ -180,9 +220,10 @@ static void steg_data(string password, string input_file, string output_file)
 
     cerr << "[*] Encoding DNA..." << endl;
     dna = dna64::encode(password != "" ? encrypted : compressed);
+    dna = create_genbank_flatfile(dna);
 
     if (output_file != "") {
-        ofs = ofstream(output_file);
+        ofstream ofs(output_file);
         ofs << dna;
         ofs.close();
     } else {
@@ -193,7 +234,6 @@ static void steg_data(string password, string input_file, string output_file)
 static void unsteg_data(string password, string input_file, string output_file)
 {
     string data = "";
-    ofstream ofs;
 
     if (input_file != "") {
         if (file_exists(input_file)) {
@@ -219,7 +259,7 @@ static void unsteg_data(string password, string input_file, string output_file)
     decompress_memory(decrypted.data(), decrypted.size(), decompressed);
 
     if (output_file != "") {
-        ofs = ofstream(output_file);
+        ofstream ofs(output_file);
         ofs << decompressed.data();
         ofs.close();
     } else {
@@ -241,10 +281,10 @@ int main(int argc, char** argv)
     try {
         po::options_description desc("Options");
         desc.add_options()("help,h", "Print help messages")("unsteg,u", po::bool_switch(&unsteg),
-                                                            "Unsteg message")(
+                                                            "unsteg message")(
             "input,i", po::value(&input_file),
             "Input file")("output,o", po::value(&output_file),
-                          "Output file")("password,p", po::value(&password), "Encryption password");
+                          "output file")("password,p", po::value(&password), "encryption password");
         po::variables_map vm;
 
         try {

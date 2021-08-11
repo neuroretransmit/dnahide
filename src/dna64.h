@@ -76,11 +76,8 @@ namespace dna64
             split.push_back(str.substr(i * len, len));
         for (const string& codon : split) {
             vector<string>::const_iterator itr = find(codons.begin(), codons.end(), codon);
-            //             if (itr != codons.end())
             base64 += b64_idx[distance(codons.begin(), itr)];
         }
-        //         auto it = std::prev( your_vector.end() );
-        //         base64 += b64_idx[distance(codons.begin(), codons.end())];
         while ((4 - base64.length() % 4) % 4)
             base64 += '=';
         return base64;

@@ -15,8 +15,7 @@ Input data goes through the following process:
     - TODO: Enable base64 index shuffling
 4. Create GenBank DNA sequence file format and overlay stegged DNA.
     - TODO: Randomly generate metadata
-    - TODO: Write formatter
-    - TODO: Write lexer/parser
+    - TODO: Write lexer/parser for unsteg
 
 
 ## Example Output
