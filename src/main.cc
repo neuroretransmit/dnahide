@@ -26,7 +26,7 @@ static inline bool file_exists(const string& fname)
     return (stat(fname.c_str(), &buffer) == 0);
 }
 
-size_t file_size(const char* filename)
+static inline size_t file_size(const char* filename)
 {
     ifstream in(filename, ifstream::ate | ifstream::binary);
     return in.tellg();
@@ -127,24 +127,23 @@ int decompress_memory(const void* data, int data_len, vector<u8>& out_data)
 static void encrypt(vector<u8>& data, const string& password)
 {
     cerr << "[*] Encrypting data..." << endl;
-    // Additional authenticated data is the SHA256 of input file
+    // TODO: Additional authenticated data
     vector<u8> aad(32, 0);
     // TODO: Use a key derivation function
-    vector<u8> key_generating_key = sha256((char*) password.data());
-    // Create AEAD using RC6
-    AEAD<WordSize::BLOCK_128> aead(key_generating_key);
+    vector<u8> kgk = sha256((char*) password.data());
+    AEAD<WordSize::BLOCK_128> aead(kgk);
     aead.seal(data, aad);
 }
 
 static void decrypt(vector<u8>& data, const string& password)
 {
     cerr << "[*] Decrypting data..." << endl;
-    // Additional authenticated data is the SHA256 of input file
+    // TODO: Additional authenticated data
     vector<u8> aad(32, 0);
     // TODO: Use a key derivation function
-    vector<u8> key_generating_key = sha256((char*) password.data());
+    vector<u8> kgk = sha256((char*) password.data());
     // Create AEAD using RC6
-    AEAD<WordSize::BLOCK_128> aead(key_generating_key);
+    AEAD<WordSize::BLOCK_128> aead(kgk);
     aead.open(data, aad);
 }
 
@@ -156,6 +155,8 @@ static string create_genbank_flatfile(const string& dna)
     uniform_int_distribution<> distr(0000000, 9999999); // define the range
     int accession = distr(gen);
 
+    // Generate metadata
+    // TODO: Lookup GXP codes/PAX6/human and add DESCRIPTION section
     ss << setw(12) << left << "LOCUS"
        << "GXP_" << accession << "(PAX6/human) " << setw(4) << dna.length() << " bp " << setw(5) << "DNA"
        << endl
@@ -177,11 +178,9 @@ static string create_genbank_flatfile(const string& dna)
     for (size_t i = 0; i < split.size(); i++) {
         ss << setw(9) << right << j + 1 << " ";
         for (j = 0; i < split.size(); j += 10, i += 1) {
-
-            if (j != 0 && !(j % 60)) {
+            if (j != 0 && !(j % 60))
                 ss << endl << setw(9) << right << j + 1 << " ";
-            }
-            ss << setw(2) << split[i++] << " ";
+            ss << setw(2) << split[i] << " ";
         }
     }
 

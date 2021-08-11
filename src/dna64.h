@@ -35,7 +35,7 @@ namespace dna64
     {
         string encoded;
         int i = 0, j = 0;
-        unsigned char chunk3b[3], chunk4b[4];
+        u8 chunk3b[3], chunk4b[4];
         size_t bytes_len = bytes.size();
         int bytes_idx = 0;
         while (bytes_len--) {
@@ -85,45 +85,45 @@ namespace dna64
 
     inline bool is_b64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
-    string b64_decode(string const& encoded_string)
+    string b64_decode(string const& encoded)
     {
-        int in_len = encoded_string.size();
+        int in_len = encoded.size();
         int i = 0;
         int j = 0;
         int in_ = 0;
-        unsigned char char_array_4[4], char_array_3[3];
+        u8 chunk4b[4], chunk3b[3];
         string ret;
 
-        while (in_len-- && (encoded_string[in_] != '=') && is_b64(encoded_string[in_])) {
-            char_array_4[i++] = encoded_string[in_];
+        while (in_len-- && (encoded[in_] != '=') && is_b64(encoded[in_])) {
+            chunk4b[i++] = encoded[in_];
             in_++;
             if (i == 4) {
                 for (i = 0; i < 4; i++)
-                    char_array_4[i] = b64_idx.find(char_array_4[i]);
+                    chunk4b[i] = b64_idx.find(chunk4b[i]);
 
-                char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-                char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-                char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+                chunk3b[0] = (chunk4b[0] << 2) + ((chunk4b[1] & 0x30) >> 4);
+                chunk3b[1] = ((chunk4b[1] & 0xf) << 4) + ((chunk4b[2] & 0x3c) >> 2);
+                chunk3b[2] = ((chunk4b[2] & 0x3) << 6) + chunk4b[3];
 
                 for (i = 0; (i < 3); i++)
-                    ret += char_array_3[i];
+                    ret += chunk3b[i];
                 i = 0;
             }
         }
 
         if (i) {
             for (j = i; j < 4; j++)
-                char_array_4[j] = 0;
+                chunk4b[j] = 0;
 
             for (j = 0; j < 4; j++)
-                char_array_4[j] = b64_idx.find(char_array_4[j]);
+                chunk4b[j] = b64_idx.find(chunk4b[j]);
 
-            char_array_3[0] = (char_array_4[0] << 2) + ((char_array_4[1] & 0x30) >> 4);
-            char_array_3[1] = ((char_array_4[1] & 0xf) << 4) + ((char_array_4[2] & 0x3c) >> 2);
-            char_array_3[2] = ((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+            chunk3b[0] = (chunk4b[0] << 2) + ((chunk4b[1] & 0x30) >> 4);
+            chunk3b[1] = ((chunk4b[1] & 0xf) << 4) + ((chunk4b[2] & 0x3c) >> 2);
+            chunk3b[2] = ((chunk4b[2] & 0x3) << 6) + chunk4b[3];
 
             for (j = 0; (j < i - 1); j++)
-                ret += char_array_3[j];
+                ret += chunk3b[j];
         }
 
         return ret;
