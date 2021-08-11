@@ -3,7 +3,7 @@
 #include <iterator>
 #include <vector>
 
-#include "types.h"
+#include "../types.h"
 
 /// Electronic Code Book mode of operation
 template<class T> class ECB : CipherInterface<T>

@@ -5,7 +5,7 @@
 #include <thread>
 #include <vector>
 
-#include "types.h"
+#include "../types.h"
 
 /// CTR mode of operation
 template<class V> class CTR

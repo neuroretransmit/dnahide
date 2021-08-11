@@ -6,7 +6,7 @@
 #include <iostream>
 #include <vector>
 
-#include "binops.h"
+#include "../binops.h"
 
 /// Rivest cipher 6 implementation
 template<class T> class RC6 : CipherInterface<T>

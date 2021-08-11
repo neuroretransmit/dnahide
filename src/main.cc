@@ -1,16 +1,15 @@
 #include <fstream>
 #include <iostream>
+#include <random>
 #include <string>
 #include <sys/stat.h>
-#include <random>
 #include <vector>
 
 #include <zlib.h>
 
-#include <boost/algorithm/string/join.hpp>
 #include <boost/program_options.hpp>
 
-#include "aead.h"
+#include "crypto/aead.h"
 #include "dna64.h"
 #include "sha256.h"
 
@@ -27,7 +26,7 @@ static inline bool file_exists(const string& fname)
     return (stat(fname.c_str(), &buffer) == 0);
 }
 
-size_t filesize(const char* filename)
+size_t file_size(const char* filename)
 {
     ifstream in(filename, ifstream::ate | ifstream::binary);
     return in.tellg();
@@ -149,43 +148,43 @@ static void decrypt(vector<u8>& data, const string& password)
     aead.open(data, aad);
 }
 
-
 static string create_genbank_flatfile(const string& dna)
 {
     stringstream ss;
-    random_device rd; // obtain a random number from hardware
-    mt19937 gen(rd()); // seed the generator
+    random_device rd;                                   // obtain a random number from hardware
+    mt19937 gen(rd());                                  // seed the generator
     uniform_int_distribution<> distr(0000000, 9999999); // define the range
     int accession = distr(gen);
 
-//     size_t i = 1;
-    ss << setw(12) << left << "LOCUS" << "GXP_" << accession << "(PAX6/human)    1105 bp    DNA" << endl
-        << setw(12) << left << "ACCESSION" << "GXP_" << accession << endl
-        << setw(14) << left << "BASE COUNT" 
-        << setw(3) << left << count(dna.begin(), dna.end(), 'A') << " a "
-        << setw(3) << left << count(dna.begin(), dna.end(), 'C') << " c "
-        << setw(3) << left << count(dna.begin(), dna.end(), 'G') << " g "
-        << setw(3) << left << count(dna.begin(), dna.end(), 'T') << " t "<< endl
-        << "ORIGIN" << endl;
-    
+    ss << setw(12) << left << "LOCUS"
+       << "GXP_" << accession << "(PAX6/human) " << setw(4) << dna.length() << " bp " << setw(5) << "DNA"
+       << endl
+       << setw(12) << left << "ACCESSION"
+       << "GXP_" << accession << endl
+       << setw(12) << left << "BASE COUNT" << setw(3) << left << count(dna.begin(), dna.end(), 'A') << " a "
+       << setw(3) << left << count(dna.begin(), dna.end(), 'C') << " c " << setw(3) << left
+       << count(dna.begin(), dna.end(), 'G') << " g " << setw(3) << left << count(dna.begin(), dna.end(), 'T')
+       << " t " << endl
+       << "ORIGIN" << endl;
+
     int len = 10;
     int num_substr = dna.length() / len;
     vector<string> split;
     for (auto i = 0; i <= num_substr; i++)
         split.push_back(dna.substr(i * len, len));
-    
+
     size_t j = 0;
     for (size_t i = 0; i < split.size(); i++) {
         ss << setw(9) << right << j + 1 << " ";
         for (j = 0; i < split.size(); j += 10, i += 1) {
-            
+
             if (j != 0 && !(j % 60)) {
                 ss << endl << setw(9) << right << j + 1 << " ";
             }
             ss << setw(2) << split[i++] << " ";
         }
     }
-    
+
     return ss.str();
 }
 
@@ -198,7 +197,7 @@ static void steg_data(const string& password, const string& input_file, const st
 
     if (input_file != "") {
         if (file_exists(input_file)) {
-            cerr << "[*] File size: " << filesize(input_file.c_str()) << " bytes" << endl;
+            cerr << "[*] File size: " << file_size(input_file.c_str()) << " bytes" << endl;
             data = read_file(input_file);
         } else {
             cerr << "ERROR: File '" << input_file << "' does not exist.\n";
@@ -292,7 +291,7 @@ int main(int argc, char** argv)
 
             if (vm.count("help") || vm.count("h") || argc == 1) {
                 help(desc);
-                return 0;
+                return SUCCESS;
             }
 
             po::notify(vm);
