@@ -1,16 +1,18 @@
 # dnahide
 
-Hide data in GenBank DNA sequence files with authenticated encryption.
+Hide data in GenBank DNA sequence files using authenticated encryption.
 
-Input data goes through the following process:
+## Info
 
-1. Compress with LZMA
-2. Encrypt using RC6 in GCM-SIV using authenticated data (can be a public key, anything under 64GB)
-    - TODO: Add unauthenticated version that uses RC6 in another mode.
-3. Base64 encode using character-level mapping of base64 character->3-letter codon.
-    - TODO: Enable base64 index shuffling
-4. Create GenBank DNA sequence file format and overlay stegged DNA.
-    - TODO: Finish randomly generating metadata/DESCRIPTION section
+* **Compression**: LZMA
+* **Encryption**: RC6 in GCM-SIV using authenticated data
+
+### Best Practices
+
+1. Since this project uses an AEAD to authenticate blocks while decrypting, both parties must have a shared secret for the authenticated data.
+
+* **TODO**: Add secret sharing scheme for exchange of authenticated data
+* **TODO**: Implement unauthenticated mode using RC6 in CTR.
 
 ## Usage
 
