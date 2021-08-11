@@ -1,6 +1,7 @@
 #include <fstream>
 #include <iostream>
 #include <random>
+#include <regex>
 #include <string>
 #include <sys/stat.h>
 #include <vector>
@@ -10,10 +11,10 @@
 #include <boost/program_options.hpp>
 
 #include "crypto/aead.h"
+#include "crypto/fastpbkdf2.h"
 #include "dna64.h"
-#include "sha256.h"
 
-/** TODO: Generate GenBank DNA sequence file format for output */
+/** TODO: Validate GenBank DNA sequence file format unstegging */
 
 using namespace std;
 namespace po = boost::program_options;
@@ -124,27 +125,29 @@ int decompress_memory(const void* data, int data_len, vector<u8>& out_data)
     return ret;
 }
 
-static void encrypt(vector<u8>& data, const string& password)
+static void encrypt(vector<u8>& data, const string& password, const string& aad)
 {
     cerr << "[*] Encrypting data..." << endl;
-    // TODO: Additional authenticated data
-    vector<u8> aad(32, 0);
-    // TODO: Use a key derivation function
-    vector<u8> kgk = sha256((char*) password.data());
+    vector<u8> aad_bytes(aad.begin(), aad.end());
+    vector<u8> kgk(32);
+    fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                           15000, kgk.data(), kgk.size());
     AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.seal(data, aad);
+    aead.seal(data, aad_bytes);
 }
 
-static void decrypt(vector<u8>& data, const string& password)
+static void decrypt(vector<u8>& data, const string& password, const string& aad)
 {
     cerr << "[*] Decrypting data..." << endl;
     // TODO: Additional authenticated data
-    vector<u8> aad(32, 0);
+    vector<u8> aad_bytes(aad.begin(), aad.end());
     // TODO: Use a key derivation function
-    vector<u8> kgk = sha256((char*) password.data());
+    vector<u8> kgk(32);
+    fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                           15000, kgk.data(), kgk.size());
     // Create AEAD using RC6
     AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.open(data, aad);
+    aead.open(data, aad_bytes);
 }
 
 static string create_genbank_flatfile(const string& dna)
@@ -166,7 +169,8 @@ static string create_genbank_flatfile(const string& dna)
        << setw(3) << left << count(dna.begin(), dna.end(), 'C') << " c " << setw(3) << left
        << count(dna.begin(), dna.end(), 'G') << " g " << setw(3) << left << count(dna.begin(), dna.end(), 'T')
        << " t " << endl
-       << "ORIGIN" << endl;
+       << "ORIGIN" << endl
+       << left;
 
     int len = 10;
     int num_substr = dna.length() / len;
@@ -187,7 +191,8 @@ static string create_genbank_flatfile(const string& dna)
     return ss.str();
 }
 
-static void steg_data(const string& password, const string& input_file, const string& output_file)
+static void steg_data(const string& password, const string& aad, const string& input_file,
+                      const string& output_file)
 {
     string data;
     vector<u8> compressed;
@@ -214,7 +219,7 @@ static void steg_data(const string& password, const string& input_file, const st
     compress_memory((void*) data.data(), data.size(), compressed);
 
     if (password != "")
-        encrypt(encrypted = compressed, password);
+        encrypt(encrypted = compressed, password, aad);
 
     cerr << "[*] Encoding DNA..." << endl;
     dna = dna64::encode(password != "" ? encrypted : compressed);
@@ -229,7 +234,9 @@ static void steg_data(const string& password, const string& input_file, const st
     }
 }
 
-static void unsteg_data(string password, string input_file, string output_file)
+// TODO: Capture piped input
+static void unsteg_data(const string& password, const string& aad, const string& input_file,
+                        const string& output_file)
 {
     string data = "";
 
@@ -247,10 +254,24 @@ static void unsteg_data(string password, string input_file, string output_file)
         cout << endl << "<<< END DNA SEQUENCE MESSAGE >>>\n\n";
     }
 
+    string tmp;
+    istringstream iss(data);
+    string p1("LOCUS.*"), p2("ACCESSION.*"), p3("BASE COUNT.*"), p4("ORIGIN.*"), p5("\\d+"),
+        p6("([TAGC]{1,10})"), p7("\\s+");
+    regex rx1(p1), rx2(p2), rx3(p3), rx4(p4), rx5(p5), rx6(p6), rx7(p7);
+    tmp = regex_replace(data, rx1, "");
+    tmp = regex_replace(tmp, rx2, "");
+    tmp = regex_replace(tmp, rx3, "");
+    tmp = regex_replace(tmp, rx4, "");
+    tmp = regex_replace(tmp, rx5, "");
+    tmp = regex_replace(tmp, rx6, "$1");
+    tmp = regex_replace(tmp, rx7, "");
+    data = tmp;
+
     cerr << "[*] Decoding DNA..." << endl;
     data = dna64::decode(data);
     vector<u8> decrypted(data.begin(), data.end());
-    decrypt(decrypted, password);
+    decrypt(decrypted, password, aad);
 
     cerr << "[*] Decompressing data..." << endl;
     vector<u8> decompressed(data.size() * 10);
@@ -275,17 +296,20 @@ int main(int argc, char** argv)
     string password = "";
     string output_file = "";
     string input_file = "";
+    string aad = "";
 
     try {
         po::options_description desc("Options");
-        desc.add_options()("help,h", "Print help messages")("unsteg,u", po::bool_switch(&unsteg),
+        desc.add_options()("help,h", "print help messages")("unsteg,u", po::bool_switch(&unsteg),
                                                             "unsteg message")(
-            "input,i", po::value(&input_file),
-            "Input file")("output,o", po::value(&output_file),
-                          "output file")("password,p", po::value(&password), "encryption password");
+            "input,i", po::value(&input_file), "Input file")("output,o", po::value(&output_file),
+                                                             "output file")(
+            "password,p", po::value(&password), "encryption password")("aad,a", po::value(&aad),
+                                                                       "additional authenticated data");
         po::variables_map vm;
 
         try {
+            // TODO: Validations of invalid switch combinations
             po::store(po::parse_command_line(argc, argv, desc), vm);
 
             if (vm.count("help") || vm.count("h") || argc == 1) {
@@ -294,11 +318,16 @@ int main(int argc, char** argv)
             }
 
             po::notify(vm);
+            if (password != "" && aad == "") {
+                cerr << "ERROR: "
+                     << "must provide authentication data" << endl;
+                exit(ERROR_IN_COMMAND_LINE);
+            }
 
             if (unsteg)
-                unsteg_data(password, input_file, output_file);
+                unsteg_data(password, aad, input_file, output_file);
             else
-                steg_data(password, input_file, output_file);
+                steg_data(password, aad, input_file, output_file);
         } catch (po::error& e) {
             cerr << "ERROR: " << e.what() << endl << endl;
             cerr << desc << endl;

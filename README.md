@@ -1,66 +1,86 @@
 # dnahide
 
-**In-progress! GenBank format and provided authenticated data unsupported yet**
-
 Hide data in GenBank DNA sequence files with authenticated encryption.
 
 Input data goes through the following process:
 
 1. Compress with LZMA
-2. Encrypt using RC6 in GCM-SIV mode using provided authentication data
-    - TODO: Add authenticated data parameter, currently hardcoded
-    - TODO: Drop in key derivation function instead of using sha256 of password
+2. Encrypt using RC6 in GCM-SIV using authenticated data (can be a public key, anything under 64GB)
     - TODO: Add unauthenticated version that uses RC6 in another mode.
-3. Base64 encode using character-level mapping of base64->3-letter codon.
+3. Base64 encode using character-level mapping of base64 character->3-letter codon.
     - TODO: Enable base64 index shuffling
 4. Create GenBank DNA sequence file format and overlay stegged DNA.
-    - TODO: Randomly generate metadata
-    - TODO: Write lexer/parser for unsteg
-
-
-## Example Output
-
-```
-LOCUS       GXP_4405072(PAX6/human)    1105 bp    DNA
-DEFINITION  loc=GXL_141121|sym=PAX6|geneid=5080|acc=GXP_4405072|
-            taxid=9606|spec=Homo sapiens|chr=11|ctg=NC_000011|str=(-)|
-            start=31806821|end=31807925|len=1105|tss=1001,1005|
-            homgroup=-|promset=-|eldorado=E32R1605|descr=paired box 6|
-            comm=GXT_25635656/ENST00000455099/1005/gold;
-            GXT_27757207/NM_001310159/1001/bronze
-ACCESSION   GXP_4405072
-BASE COUNT    229 a  239 c  313 g  324 t
-ORIGIN
-        1 GACTTTTTTT TTTTTTCCTT TGGGAAAGGT AGGGAGGTGT TCGTACGGGA GCAGCCTCGG
-       61 GGACCCCTGC ACTGGGTCAG GGCTTATGAA GCTAGAAGCG TCCCTCTGTT CCCTTTGTGA
-      121 GTTGGTGGGT TGTTGGTACA TTTGGTTGGA AGCTGTGTTG CTGGTTAGGG AGACTCGGTT
-      181 TTGCTCCTTG GGTTCGAGGA AAGCTGGAGA ATAGAAGCCA TTGTTTGCCG TCTGTCGGCT
-      241 TTGTCGACCA CGCTCACCCC CTCCTGTTCG TACTTTTTAA AGCAGTGAGG CGAGGTAGAC
-      301 AGGGTGTGTC ACAGTACAGT TAAAGGGGTG AAGATCTAAA CGCCAAAAGA GAAGTTAATC
-      361 ACAATAAGTG AGGTTTGGGA TAAAAAGTTG GGCTTGCCCC TTTCAAAGTC CCAGAAAGCT
-      421 GGGAGGTAGA TGGAGAGGGG GCCATTGGGA AGTTTTTTTG GTGTAGGGAG AGGAGTAGAA
-      481 GATAAAGGGT AAGCAGAGTG TTGGGTTCTG GGGGTCTTGT GAAGTTCCTT AAGGAAGGAG
-      541 GGAGTGTGGC CCTGCAGCCC TCCCAAACTG CTCCAGCCTA TGCTCTCCGG CACCAGGAAG
-      601 TTCCAAGGTT CCCTTCCCCT GGTCTCCAAA CTTCAGGTAT TCCTCTCCCC TCACACCCCT
-      661 TCAACCTCAG CTCTTGGCCT CTACTCCTTA CTCCACTGTT CCTCCTGTTT CCCCCTTCCC
-      721 CTTTTCCTGG TTCTTTATAT TTTTGCAAAG TGGGATCCGA ACTTGCTAGA TTTTCCAATT
-      781 CTCCCAAGCC AGACCAGAGC AGCCTCTTTT AAAGGATGGA GACTTCTGTG GCAGATGCCG
-      841 CTGAAAATGT GGGTGTAATG CTGGGACTTA GAGTTTGATG ACAGTTTGAC TGAGCCCTAG
-      901 ATGCATGTGT TTTTCCTGAG AGTGAGGCTC AGAGAGCCCA TGGACGTATG CTGTTGAACC
-      961 ACAGCTTGAT ATACCTTTTT CTCCTTCTGT TTTGTCTTAG GGGGAAGACT TTAACTAGGG
-     1021 GCGCGCAGAT GTGTGAGGCC TTTTATTGTG AGAGTGGACA GACATCCGAG ATTTCAGGCA
-     1081 AGTTCTGTGG TGGCTGCTTT GGGCT
-```
+    - TODO: Finish randomly generating metadata/DESCRIPTION section
 
 ## Usage
 
 ```
-DNAHide - Hide messages in DNA
+dnahide - hide messages in DNA
 Options:
-  -h [ --help ]         Print help messages
-  -u [ --unsteg ]       Unsteg message
+  -h [ --help ]         print help messages
+  -u [ --unsteg ]       unsteg message
   -i [ --input ] arg    Input file
-  -o [ --output ] arg   Output file
-  -p [ --password ] arg Encryption password
-  -a [ --aad ] arg      Additional authenticated data
+  -o [ --output ] arg   output file
+  -p [ --password ] arg encryption password
+  -a [ --aad ] arg      additional authenticated data
+```
+
+### Stegging
+
+```
+$ ./dnahide --input some_file --password test -aad authentication_data
+[*] File size: 625 bytes
+[*] Compressing...
+[*] Encrypting data...
+[*] Encoding DNA...
+
+LOCUS       GXP_8263708(PAX6/human) 1113 bp DNA  
+ACCESSION   GXP_8263708
+BASE COUNT  304 a 279 c 278 g 252 t 
+ORIGIN
+        1 TACCATCTTG GAGTCGGATT ATTAAAATGA AAAATAGCCG TTCCGGCATT GTGTGCCAAC 
+       61 AAATAGAGCC GGCGAATTAT AGAGGTGAGT AGAGTGCAAG CACGCGGGTC CTGAAAGAAC 
+      121 TGCGGGTGTT CCGTGCATAC ACCAATAATT TGTGTTCGCA GATACATACT TGACCCATAC 
+      181 CGACAAGTGT GAATATTGAG ACTGCCATCC GATGTCGACA AAGATTGATG TCTGTGCCTG 
+      241 GTCTTATCAA TCGCTACTCT AGGACATCCC ATACTCACCA TTACATAGCG GCCAAGACAG 
+      301 TGCTCACGGA CCCATAGCAA CAAGAAGCTA GCATCATGCT GGACGCCTAT CGTGAACGCC 
+      361 GGGCTGGGAT GCGTAACCAT CCGCACCGTG TATCCACCAT CTCCACGCAA GCGCAGGAGG 
+      421 GCTATCCCCG CGACGGGTAC TAGATCTCAT GATATAAAAG GGACCGATGA TCCTTTGATA 
+      481 CACTACTAGA ACAGATTACG ATCTCGGTTA TACTCCATGC ATCGTGCTCG ACCCACTAAT 
+      541 TAGCACCCCA GCGTGCGACC TTTCCGACAA TGATGACGTG TGACATCGAC GCTGGAGGCT 
+      601 GAGGTGTTGG CCAGGTCCTT TTTCAGAGCG TGCGGCCTCG GGAGGTGTCG AGGAAGGCGA 
+      661 ACCCCATATA TTTCCATCTT TCTGTAGAGT CTGCTACCTG GCCTAGAAAT GATTTGCTAC 
+      721 CAACGCCCAC CACCTGGCAG CCTAACTTGA ATAAGGAAGA CTTGAAATAG CATCAGCAGC 
+      781 GATGGAATAG CGTTAACCTG GGGTTTTGCT AGTGCAGACC TGATCTGATG GTATGCGACC 
+      841 AGATACTGGC CTGCGAGGAA CATAGGACTA ACCCGAACCT CGGACAAAGA GCAGTTAGAG 
+      901 CTAGAACAGA GCCACAACTC GAAGCACCGA AGATCTGCGC ACCATACCAG CAACGGAGGT 
+      961 GTTTTCACGG TGAAATCGCT CCAGAGTCCT TTTAGACTCA TGAAGGTAAT AGTCAGGCAA 
+     1021 GCTAGGTTAG AGTTAACAGA GCTCGAGGTC CGTGTGGGTT ATCTGCATTG CACACGAACC 
+     1081 AGATTCATTA CCGAGATAAT GGGCTACTTG CTC 
+```
+
+### Unstegging
+
+```
+$ ./dnahide --input test.gb --unsteg --password test --aad authentication_data 
+[*] Decoding DNA...
+[*] Decrypting data...
+[*] Decompressing data...
+
+<<< BEGIN RECOVERED MESSAGE >>>
+
+[
+{
+  "directory": "/home/jonesy/git/dnahide/build/src",
+  "command": "/usr/bin/c++  -DBOOST_ALL_NO_LIB -DBOOST_PROGRAM_OPTIONS_DYN_LINK   -Wall -Werror -Wextra -Os -g   -pthread -o CMakeFiles/dnahide.dir/main.cc.o -c /home/jonesy/git/dnahide/src/main.cc",
+  "file": "/home/jonesy/git/dnahide/src/main.cc"
+},
+{
+  "directory": "/home/jonesy/git/dnahide/build/src",
+  "command": "/usr/bin/cc -DBOOST_ALL_NO_LIB -DBOOST_PROGRAM_OPTIONS_DYN_LINK  -g   -pthread -o CMakeFiles/dnahide.dir/crypto/fastbpkdf2.c.o   -c /home/jonesy/git/dnahide/src/crypto/fastbpkdf2.c",
+  "file": "/home/jonesy/git/dnahide/src/crypto/fastbpkdf2.c"
+}
+]
+<<< END RECOVERED MESSAGE >>>
+
 ```
