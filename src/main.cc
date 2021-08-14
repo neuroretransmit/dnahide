@@ -91,17 +91,18 @@ static void compress_memory(void* data, size_t data_size, vector<u8>& out_data)
     out_data.swap(buffer);
 }
 
-int decompress_memory(const void* data, int data_len, vector<u8>& out_data)
+int decompress_memory(const void* data, int data_size, vector<u8>& out_data)
 {
     z_stream strm;
-    strm.total_in = strm.avail_in = data_len;
-    strm.total_out = strm.avail_out = out_data.size();
+    strm.total_in = strm.avail_in = data_size;
     strm.next_in = (u8*) data;
-    strm.next_out = out_data.data();
+    strm.next_out = (u8*) out_data.data();
 
     strm.zalloc = Z_NULL;
     strm.zfree = Z_NULL;
     strm.opaque = Z_NULL;
+    strm.total_out = deflateBound(&strm, data_size);
+    strm.avail_out = out_data.size();
 
     int err = -1;
     int ret = -1;
@@ -139,9 +140,7 @@ static void encrypt(vector<u8>& data, const string& password, const string& aad)
 static void decrypt(vector<u8>& data, const string& password, const string& aad)
 {
     cerr << "[*] Decrypting data..." << endl;
-    // TODO: Additional authenticated data
     vector<u8> aad_bytes(aad.begin(), aad.end());
-    // TODO: Use a key derivation function
     vector<u8> kgk(32);
     fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
                            15000, kgk.data(), kgk.size());
@@ -208,11 +207,11 @@ static void steg_data(const string& password, const string& aad, const string& i
             exit(ERROR_IN_COMMAND_LINE);
         }
     } else {
-        cout << "<<< BEGIN STEGGED MESSAGE (Press CTRL+D when done) >>>\n\n";
+        cerr << "<<< BEGIN STEGGED MESSAGE (Press CTRL+D when done) >>>\n\n";
         for (string line; getline(cin, line);)
             data += line + "\n";
-        cout << endl << "<<< END STEGGED MESSAGE >>>\n\n";
-        cout << endl;
+        cerr << endl << "<<< END STEGGED MESSAGE >>>\n\n";
+        cerr << endl;
     }
 
     cerr << "[*] Compressing..." << endl;
@@ -256,37 +255,40 @@ static void unsteg_data(const string& password, const string& aad, const string&
 
     string tmp;
     istringstream iss(data);
-    string p1("LOCUS.*"), p2("ACCESSION.*"), p3("BASE COUNT.*"), p4("ORIGIN.*"), p5("\\d+"),
-        p6("([TAGC]{1,10})"), p7("\\s+");
-    regex rx1(p1), rx2(p2), rx3(p3), rx4(p4), rx5(p5), rx6(p6), rx7(p7);
-    tmp = regex_replace(data, rx1, "");
-    tmp = regex_replace(tmp, rx2, "");
-    tmp = regex_replace(tmp, rx3, "");
-    tmp = regex_replace(tmp, rx4, "");
-    tmp = regex_replace(tmp, rx5, "");
-    tmp = regex_replace(tmp, rx6, "$1");
-    tmp = regex_replace(tmp, rx7, "");
+    string locus_pattern("LOCUS.*"), accession_pattern("ACCESSION.*"), base_count_pattern("BASE COUNT.*"),
+        origin_pattern("ORIGIN.*"), row_number_pattern("\\d+"), dna_pattern("([TAGC]{1,10})"),
+        whitespace_pattern("\\s+");
+    regex locus_regex(locus_pattern), accession_regex(accession_pattern),
+        base_count_regex(base_count_pattern), origin_regex(origin_pattern),
+        row_number_regex(row_number_pattern), dna_regex(dna_pattern), whitespace_regex(whitespace_pattern);
+    tmp = regex_replace(data, locus_regex, "");
+    tmp = regex_replace(tmp, accession_regex, "");
+    tmp = regex_replace(tmp, base_count_regex, "");
+    tmp = regex_replace(tmp, origin_regex, "");
+    tmp = regex_replace(tmp, row_number_regex, "");
+    tmp = regex_replace(tmp, dna_regex, "$1");
+    tmp = regex_replace(tmp, whitespace_regex, "");
     data = tmp;
 
     cerr << "[*] Decoding DNA..." << endl;
     data = dna64::decode(data);
     vector<u8> decrypted(data.begin(), data.end());
-    decrypt(decrypted, password, aad);
+
+    if (password != "")
+        decrypt(decrypted, password, aad);
 
     cerr << "[*] Decompressing data..." << endl;
-    vector<u8> decompressed(data.size() * 10);
-    decompress_memory(decrypted.data(), decrypted.size(), decompressed);
+    vector<u8> decompressed(decrypted.size() * 10);
+    size_t bytes = decompress_memory(decrypted.data(), decrypted.size(), decompressed);
 
     if (output_file != "") {
-        ofstream ofs(output_file);
-        ofs << decompressed.data();
+        ofstream ofs(output_file, ios_base::out | ios_base::binary);
+        ofs.write(reinterpret_cast<const char*>(decompressed.data()), bytes);
         ofs.close();
     } else {
-        cout << endl
-             << "<<< BEGIN RECOVERED MESSAGE >>>" << endl
-             << endl
-             << decompressed.data() << endl
-             << "<<< END RECOVERED MESSAGE >>>" << endl;
+        cerr << endl << "<<< BEGIN RECOVERED MESSAGE >>>" << endl << endl;
+        cout.write(reinterpret_cast<const char*>(decompressed.data()), bytes);
+        cerr << endl << "<<< END RECOVERED MESSAGE >>>" << endl;
     }
 }
 
