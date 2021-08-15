@@ -3,7 +3,7 @@
 #include <cassert>
 #include <zlib.h>
 
-void compress_memory(void* data, size_t data_size, vector<u8>& out_data)
+void compress_memory(const string& data, vector<u8>& out_data)
 {
     vector<u8> buffer;
     const size_t BUFSIZE = 128 * 1024;
@@ -12,8 +12,8 @@ void compress_memory(void* data, size_t data_size, vector<u8>& out_data)
     z_stream strm;
     strm.zalloc = 0;
     strm.zfree = 0;
-    strm.next_in = reinterpret_cast<u8*>(data);
-    strm.avail_in = data_size;
+    strm.next_in = (u8*) data.data();
+    strm.avail_in = data.size();
     strm.next_out = temp_buffer;
     strm.avail_out = BUFSIZE;
 

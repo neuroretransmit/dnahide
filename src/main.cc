@@ -138,7 +138,7 @@ static void steg_data(const string& password, const string& aad, const string& i
     }
 
     cerr << "[*] Compressing..." << endl;
-    compress_memory((void*) data.data(), data.size(), compressed);
+    compress_memory(data, compressed);
 
     if (password != "")
         encrypt(encrypted = compressed, password, aad);

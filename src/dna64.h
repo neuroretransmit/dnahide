@@ -6,12 +6,9 @@
 #include <string>
 #include <vector>
 
-#include <boost/algorithm/string/join.hpp>
-
 #include "types.h"
 
 using namespace std;
-namespace ba = boost::algorithm;
 
 namespace dna64
 {
@@ -73,8 +70,6 @@ namespace dna64
             string b64_replacement =
                 string(1, b64_idx[distance(codons.begin(), find(codons.begin(), codons.end(), codon))]);
             replace(split.begin(), split.end(), codon, b64_replacement);
-            //             vector<string>::const_iterator itr = find(codons.begin(), codons.end(), codon);
-            //             out_data += b64_idx[distance(codons.begin(), itr)];
         }
         ostringstream os;
         copy(split.begin(), split.end(), ostream_iterator<string>(os));
