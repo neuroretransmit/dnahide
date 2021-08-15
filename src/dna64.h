@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -11,12 +12,6 @@
 
 using namespace std;
 namespace ba = boost::algorithm;
-
-string strip(string in)
-{
-    in.erase(remove_if(in.begin(), in.end(), [](string::value_type ch) { return !isalpha(ch); }), in.end());
-    return in;
-}
 
 namespace dna64
 {
@@ -71,16 +66,23 @@ namespace dna64
     {
         int num_substr = str.length() / len;
         vector<string> split;
-        string base64;
         for (auto i = 0; i <= num_substr; i++)
             split.push_back(str.substr(i * len, len));
-        for (const string& codon : split) {
-            vector<string>::const_iterator itr = find(codons.begin(), codons.end(), codon);
-            base64 += b64_idx[distance(codons.begin(), itr)];
+        set<string> to_replace(split.begin(), split.end());
+        for (const string& codon : to_replace) {
+            string b64_replacement =
+                string(1, b64_idx[distance(codons.begin(), find(codons.begin(), codons.end(), codon))]);
+            replace(split.begin(), split.end(), codon, b64_replacement);
+            //             vector<string>::const_iterator itr = find(codons.begin(), codons.end(), codon);
+            //             out_data += b64_idx[distance(codons.begin(), itr)];
         }
-        while ((4 - base64.length() % 4) % 4)
-            base64 += '=';
-        return base64;
+        ostringstream os;
+        copy(split.begin(), split.end(), ostream_iterator<string>(os));
+        os.seekp(0, ios::end);
+        // Pad
+        while ((4 - os.tellp() % 4) % 4)
+            os << '=';
+        return os.str();
     }
 
     inline bool is_b64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
@@ -92,7 +94,7 @@ namespace dna64
         int j = 0;
         int in_ = 0;
         u8 chunk4b[4], chunk3b[3];
-        string ret;
+        stringstream ss;
 
         while (in_len-- && (encoded[in_] != '=') && is_b64(encoded[in_])) {
             chunk4b[i++] = encoded[in_];
@@ -106,7 +108,7 @@ namespace dna64
                 chunk3b[2] = ((chunk4b[2] & 0x3) << 6) + chunk4b[3];
 
                 for (i = 0; (i < 3); i++)
-                    ret += chunk3b[i];
+                    ss << chunk3b[i];
                 i = 0;
             }
         }
@@ -123,15 +125,11 @@ namespace dna64
             chunk3b[2] = ((chunk4b[2] & 0x3) << 6) + chunk4b[3];
 
             for (j = 0; (j < i - 1); j++)
-                ret += chunk3b[j];
+                ss << chunk3b[j];
         }
 
-        return ret;
+        return ss.str();
     }
 
-    string decode(const string& data)
-    {
-        string decoded = to_b64(data, 3);
-        return b64_decode(decoded);
-    }
+    string decode(const string& data) { return b64_decode(to_b64(data, 3)); }
 }; // namespace dna64

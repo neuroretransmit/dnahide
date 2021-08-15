@@ -194,8 +194,8 @@ static void unsteg_data(const string& password, const string& aad, const string&
     data = tmp;
 
     cerr << "[*] Decoding DNA..." << endl;
-    data = dna64::decode(data);
-    vector<u8> decrypted(data.begin(), data.end());
+    string decoded = dna64::decode(tmp);
+    vector<u8> decrypted(decoded.begin(), decoded.end());
 
     if (password != "")
         decrypt(decrypted, password, aad);

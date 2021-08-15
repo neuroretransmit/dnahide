@@ -22,7 +22,7 @@ void compress_memory(void* data, size_t data_size, vector<u8>& out_data)
     while (strm.avail_in != 0) {
         int res = deflate(&strm, Z_NO_FLUSH);
         assert(res == Z_OK);
-        if (strm.avail_out == 0) {
+        if (strm.avail_out == 0 && res == Z_OK) {
             buffer.insert(buffer.end(), temp_buffer, temp_buffer + BUFSIZE);
             strm.next_out = temp_buffer;
             strm.avail_out = BUFSIZE;
