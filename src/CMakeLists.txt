@@ -18,7 +18,7 @@ find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${Boost_INCLUDE_DIR} ${OpenSSL_INCLUDE_DIR})
 
-add_executable(dnahide main.cc crypto/fastbpkdf2.c compression.cc)
+add_executable(dnahide main.cc crypto/fastbpkdf2.c)
 target_link_libraries(dnahide PRIVATE Threads::Threads ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ZLIB::ZLIB)
 
 install(TARGETS dnahide RUNTIME DESTINATION bin)

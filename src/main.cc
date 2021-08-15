@@ -138,7 +138,7 @@ static void steg_data(const string& password, const string& aad, const string& i
     }
 
     cerr << "[*] Compressing..." << endl;
-    compress_memory(data, compressed);
+    lzma::compress(data, compressed);
 
     if (password != "")
         encrypt(encrypted = compressed, password, aad);
@@ -201,16 +201,16 @@ static void unsteg_data(const string& password, const string& aad, const string&
         decrypt(decrypted, password, aad);
 
     cerr << "[*] Decompressing data..." << endl;
-    vector<u8> decompressed(decrypted.size() * 10);
-    size_t bytes = decompress_memory(decrypted.data(), decrypted.size(), decompressed);
+    vector<u8> decompressed(decrypted.size() * 4);
+    size_t decompressed_size = lzma::decompress(decrypted, decompressed);
 
     if (output_file != "") {
         ofstream ofs(output_file, ios_base::out | ios_base::binary);
-        ofs.write(reinterpret_cast<const char*>(decompressed.data()), bytes);
+        ofs.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
         ofs.close();
     } else {
         cerr << endl << "<<< BEGIN RECOVERED MESSAGE >>>" << endl << endl;
-        cout.write(reinterpret_cast<const char*>(decompressed.data()), bytes);
+        cout.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
         cerr << endl << "<<< END RECOVERED MESSAGE >>>" << endl;
     }
 }
