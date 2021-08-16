@@ -14,6 +14,7 @@
 #include "crypto/aead.h"
 #include "crypto/fastpbkdf2.h"
 #include "dna64.h"
+#include "obfuscate.h"
 
 /** TODO: Validate GenBank DNA sequence file format unstegging */
 
@@ -36,14 +37,17 @@ static inline size_t file_size(const char* filename)
 
 static void help(const po::options_description& desc)
 {
-    cout << "dnahide - hide messages in DNA" << endl << desc << endl;
+    string msg = "dnahide - hide messages in DNA"_hidden;
+    cout << msg << endl << desc << endl;
 }
 
 static string read_file(const string& path)
 {
     ifstream input_file(path);
+    string pre = "Could not open the file - '"_hidden;
+    string post = "'"_hidden;
     if (!input_file.is_open()) {
-        cerr << "Could not open the file - '" << path << "'" << endl;
+        cerr << pre << path << post << endl;
         exit(EXIT_FAILURE);
     }
     return string{istreambuf_iterator<char>{input_file}, {}};
@@ -51,25 +55,28 @@ static string read_file(const string& path)
 
 static void encrypt(vector<u8>& data, const string& password, const string& aad)
 {
-    cerr << "[*] Encrypting data..." << endl;
+    string msg = "[*] Encrypting data..."_hidden;
+    cerr << msg << endl;
+
     vector<u8> aad_bytes(aad.begin(), aad.end());
     vector<u8> kgk(32);
     fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
                            15000, kgk.data(), kgk.size());
     AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.seal(data, aad_bytes);
+    aead.seal(data, aad_bytes, false);
 }
 
 static void decrypt(vector<u8>& data, const string& password, const string& aad)
 {
-    cerr << "[*] Decrypting data..." << endl;
+    string msg = "[*] Decrypting data..."_hidden;
+    cerr << msg << endl;
     vector<u8> aad_bytes(aad.begin(), aad.end());
     vector<u8> kgk(32);
     fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
                            15000, kgk.data(), kgk.size());
     // Create AEAD using RC6
     AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.open(data, aad_bytes);
+    aead.open(data, aad_bytes, false);
 }
 
 static string create_genbank_flatfile(const string& dna)
@@ -82,16 +89,23 @@ static string create_genbank_flatfile(const string& dna)
 
     // Generate metadata
     // TODO: Lookup GXP codes/PAX6/human and add DESCRIPTION section
-    ss << setw(12) << left << "LOCUS"
-       << "GXP_" << accession << "(PAX6/human) " << setw(4) << dna.length() << " bp " << setw(5) << "DNA"
-       << endl
-       << setw(12) << left << "ACCESSION"
-       << "GXP_" << accession << endl
-       << setw(12) << left << "BASE COUNT" << setw(3) << left << count(dna.begin(), dna.end(), 'A') << " a "
-       << setw(3) << left << count(dna.begin(), dna.end(), 'C') << " c " << setw(3) << left
-       << count(dna.begin(), dna.end(), 'G') << " g " << setw(3) << left << count(dna.begin(), dna.end(), 'T')
-       << " t " << endl
-       << "ORIGIN" << endl
+    string locus_header = "LOCUS"_hidden;
+    string gxp = "GXP_"_hidden;
+    string human = "(PAX6/human) "_hidden;
+    string bp = " bp "_hidden;
+    string dna_header = "DNA"_hidden;
+    string accession_header = "ACCESSION"_hidden;
+    string base_count = "BASE COUNT"_hidden;
+    string t = " t "_hidden, a = " a "_hidden, g = " g "_hidden, c = " c "_hidden;
+    string origin_header = "ORIGIN"_hidden;
+    ss << setw(12) << left << locus_header << gxp << accession << human << setw(4) << dna.length() << bp
+       << setw(5) << dna_header << endl
+       << setw(12) << left << accession_header << gxp << accession << endl
+       << setw(12) << left << base_count << setw(3) << left << count(dna.begin(), dna.end(), 'A') << a
+       << setw(3) << left << count(dna.begin(), dna.end(), 'C') << c << setw(3) << left
+       << count(dna.begin(), dna.end(), 'G') << g << setw(3) << left << count(dna.begin(), dna.end(), 'T')
+       << t << endl
+       << origin_header << endl
        << left;
 
     int len = 10;
@@ -123,27 +137,35 @@ static void steg_data(const string& password, const string& aad, const string& i
 
     if (input_file != "") {
         if (file_exists(input_file)) {
-            cerr << "[*] File size: " << file_size(input_file.c_str()) << " bytes" << endl;
+            string pre = "[*] File size: "_hidden;
+            string post = " bytes"_hidden;
+            cerr << pre << file_size(input_file.c_str()) << post << endl;
             data = read_file(input_file);
         } else {
-            cerr << "ERROR: File '" << input_file << "' does not exist.\n";
+            string pre = "ERROR: File '"_hidden;
+            string post = "' does not exist.\n"_hidden;
+            cerr << pre << input_file << post;
             exit(ERROR_IN_COMMAND_LINE);
         }
     } else {
-        cerr << "<<< BEGIN STEGGED MESSAGE (Press CTRL+D when done) >>>\n\n";
+        string header = "<<< BEGIN STEGGED MESSAGE (Press CTRL+D when done) >>>\n\n"_hidden;
+        string footer = "<<< END STEGGED MESSAGE >>>\n\n"_hidden;
+        cerr << header;
         for (string line; getline(cin, line);)
             data += line + "\n";
-        cerr << endl << "<<< END STEGGED MESSAGE >>>\n\n";
+        cerr << endl << footer;
         cerr << endl;
     }
 
-    cerr << "[*] Compressing..." << endl;
+    string compressing = "[*] Compressing..."_hidden;
+    cerr << compressing << endl;
     lzma::compress(data, compressed);
 
     if (password != "")
         encrypt(encrypted = compressed, password, aad);
 
-    cerr << "[*] Encoding DNA..." << endl;
+    string encoding = "[*] Encoding DNA..."_hidden;
+    cerr << encoding << endl;
     dna = dna64::encode(password != "" ? encrypted : compressed);
     dna = create_genbank_flatfile(dna);
 
@@ -166,14 +188,18 @@ static void unsteg_data(const string& password, const string& aad, const string&
         if (file_exists(input_file)) {
             data = read_file(input_file);
         } else {
-            cerr << "ERROR: File '" << input_file << "' does not exist.\n";
+            string pre = "ERROR: File '"_hidden;
+            string post = "' does not exist.\n"_hidden;
+            cerr << pre << input_file << post;
             exit(ERROR_IN_COMMAND_LINE);
         }
     } else {
-        cout << "<<< BEGIN DNA SEQUENCE MESSAGE (Press CTRL+D when done) >>>\n\n";
+        string header = "<<< BEGIN DNA SEQUENCE MESSAGE (Press CTRL+D when done) >>>\n\n"_hidden;
+        string footer = "<<< END DNA SEQUENCE MESSAGE >>>\n\n"_hidden;
+        cout << header;
         for (string line; getline(cin, line);)
             data += line + "\n";
-        cout << endl << "<<< END DNA SEQUENCE MESSAGE >>>\n\n";
+        cout << endl << footer;
     }
 
     string tmp;
@@ -193,14 +219,16 @@ static void unsteg_data(const string& password, const string& aad, const string&
     tmp = regex_replace(tmp, whitespace_regex, "");
     data = tmp;
 
-    cerr << "[*] Decoding DNA..." << endl;
+    string decoding = "[*] Decoding DNA..."_hidden;
+    cerr << decoding << endl;
     string decoded = dna64::decode(tmp);
     vector<u8> decrypted(decoded.begin(), decoded.end());
 
     if (password != "")
         decrypt(decrypted, password, aad);
 
-    cerr << "[*] Decompressing data..." << endl;
+    string decompressing = "[*] Decompressing data..."_hidden;
+    cerr << decompressing << endl;
     vector<u8> decompressed(decrypted.size() * 4);
     size_t decompressed_size = lzma::decompress(decrypted, decompressed);
 
@@ -209,9 +237,11 @@ static void unsteg_data(const string& password, const string& aad, const string&
         ofs.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
         ofs.close();
     } else {
-        cerr << endl << "<<< BEGIN RECOVERED MESSAGE >>>" << endl << endl;
+        string header = "<<< BEGIN RECOVERED MESSAGE >>>"_hidden;
+        string footer = "<<< END RECOVERED MESSAGE >>>"_hidden;
+        cerr << endl << header << endl << endl;
         cout.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
-        cerr << endl << "<<< END RECOVERED MESSAGE >>>" << endl;
+        cerr << endl << footer << endl;
     }
 }
 
@@ -244,8 +274,8 @@ int main(int argc, char** argv)
 
             po::notify(vm);
             if (password != "" && aad == "") {
-                cerr << "ERROR: "
-                     << "must provide authentication data" << endl;
+                string error = "ERROR: must provide authentication data"_hidden;
+                cerr << error << endl;
                 exit(ERROR_IN_COMMAND_LINE);
             }
 
@@ -254,16 +284,15 @@ int main(int argc, char** argv)
             else
                 steg_data(password, aad, input_file, output_file);
         } catch (po::error& e) {
-            cerr << "ERROR: " << e.what() << endl << endl;
+            string pre = "ERROR: "_hidden;
+            cerr << pre << e.what() << endl << endl;
             cerr << desc << endl;
             return ERROR_IN_COMMAND_LINE;
-        } catch (boost::bad_any_cast& e) {
-            cerr << "ERROR: " << e.what() << endl << endl;
-            cerr << desc << endl;
         }
     } catch (exception& e) {
-        cerr << "Unhandled Exception reached the top of main: " << e.what() << ", application will now exit"
-             << endl;
+        string pre = "ERROR: unhandled exception reached the top of main: "_hidden;
+        string post = ", application will now exit"_hidden;
+        cerr << pre << e.what() << post << endl;
         return ERROR_UNHANDLED_EXCEPTION;
     }
 

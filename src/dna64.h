@@ -6,6 +6,7 @@
 #include <string>
 #include <vector>
 
+#include "obfuscate.h"
 #include "types.h"
 
 using namespace std;
@@ -14,14 +15,19 @@ namespace dna64
 {
     static const string b64_idx = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                   "abcdefghijklmnopqrstuvwxyz"
-                                  "0123456789+/";
+                                  "0123456789+/"_hidden;
 
     const vector<string> codons = {
-        "ATT", "ATC", "ATA", "CTT", "CTC", "CTA", "CTG", "TTA", "TTG", "GTT", "GTC", "GTA", "GTG",
-        "TTT", "TTC", "ATG", "TGT", "TGC", "GCT", "GCC", "GCA", "GCG", "GGT", "GGC", "GGA", "GGG",
-        "CCT", "CCC", "CCA", "CCG", "ACT", "ACC", "ACA", "ACG", "TCT", "TCC", "TCA", "TCG", "AGT",
-        "AGC", "TAT", "TAC", "TGG", "CAA", "CAG", "AAT", "AAC", "CAT", "CAC", "GAA", "GAG", "GAT",
-        "GAC", "AAA", "AAG", "CGT", "CGC", "CGA", "CGG", "AGA", "AGG", "TAA", "TAG", "TGA"};
+        "ATT"_hidden, "ATC"_hidden, "ATA"_hidden, "CTT"_hidden, "CTC"_hidden, "CTA"_hidden, "CTG"_hidden,
+        "TTA"_hidden, "TTG"_hidden, "GTT"_hidden, "GTC"_hidden, "GTA"_hidden, "GTG"_hidden, "TTT"_hidden,
+        "TTC"_hidden, "ATG"_hidden, "TGT"_hidden, "TGC"_hidden, "GCT"_hidden, "GCC"_hidden, "GCA"_hidden,
+        "GCG"_hidden, "GGT"_hidden, "GGC"_hidden, "GGA"_hidden, "GGG"_hidden, "CCT"_hidden, "CCC"_hidden,
+        "CCA"_hidden, "CCG"_hidden, "ACT"_hidden, "ACC"_hidden, "ACA"_hidden, "ACG"_hidden, "TCT"_hidden,
+        "TCC"_hidden, "TCA"_hidden, "TCG"_hidden, "AGT"_hidden, "AGC"_hidden, "TAT"_hidden, "TAC"_hidden,
+        "TGG"_hidden, "CAA"_hidden, "CAG"_hidden, "AAT"_hidden, "AAC"_hidden, "CAT"_hidden, "CAC"_hidden,
+        "GAA"_hidden, "GAG"_hidden, "GAT"_hidden, "GAC"_hidden, "AAA"_hidden, "AAG"_hidden, "CGT"_hidden,
+        "CGC"_hidden, "CGA"_hidden, "CGG"_hidden, "AGA"_hidden, "AGG"_hidden, "TAA"_hidden, "TAG"_hidden,
+        "TGA"_hidden};
 
     string encode(const vector<u8>& bytes)
     {

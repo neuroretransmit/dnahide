@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "../binops.h"
+#include "../obfuscate.h"
 
 /// Rivest cipher 6 implementation
 template<class T> class RC6 : CipherInterface<T>
@@ -29,7 +30,8 @@ template<class T> class RC6 : CipherInterface<T>
 #define ENV64BIT
 #else
         if (WORD_BIT_LEN > 32) {
-            cerr << "ERROR: Trying to run 256-bit blocksize on a 32-bit CPU.\n";
+            string error = "ERROR: Trying to run 256-bit blocksize on a 32-bit CPU.\n"_hidden;
+            cerr << error;
             exit(-1);
         }
 #endif
@@ -41,7 +43,8 @@ template<class T> class RC6 : CipherInterface<T>
 #define ENV64BIT
 #else
         if (WORD_BIT_LEN > 32) {
-            cerr << "ERROR: Trying to run 256-bit blocksize on a 32-bit CPU.\n";
+            string error = "ERROR: Trying to run 256-bit blocksize on a 32-bit CPU.\n"_hidden;
+            cerr << error;
             exit(-1);
         }
 #endif
@@ -154,7 +157,8 @@ template<class T> class RC6 : CipherInterface<T>
 
         // TODO: Use exception for programs using this as a library
         if (key_bit_len > MAX_KEY_BIT_LEN) {
-            cerr << "ERROR: Key can't be greater than 2040 bits, got " << key_bit_len << ".\n";
+            string error = "ERROR: Key can't be greater than 2040 bits, got "_hidden;
+            cerr << error << key_bit_len << ".\n";
             exit(1);
         }
 

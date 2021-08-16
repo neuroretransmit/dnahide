@@ -15,6 +15,8 @@
 #include "polyval.h"
 #include "rc6.h"
 
+#include "../obfuscate.h"
+
 using random_bytes_engine = independent_bits_engine<default_random_engine, CHAR_BIT, u8>;
 
 /// Authenticated Encryption with Additional Data
@@ -28,8 +30,8 @@ template<class T> class AEAD
     AEAD(const vector<u8>& key_generating_key) : KEY_GENERATING_KEY(key_generating_key)
     {
         if ((KEY_GENERATING_KEY.size() != (128 / 8) && KEY_GENERATING_KEY.size() != (256 / 8))) {
-            cerr << "ERROR: Key generating key for AEAD must be 16 or 32 bytes. Got "
-                 << KEY_GENERATING_KEY.size() << ".\n";
+            string error = "ERROR: Key generating key for AEAD must be 16 or 32 bytes. Got "_hidden;
+            cerr << error << KEY_GENERATING_KEY.size() << ".\n";
             exit(1);
         }
     }
@@ -62,8 +64,8 @@ template<class T> class AEAD
 
         // TODO: Test
         if (ciphertext.size() < NONCE_BYTE_LEN) {
-            cerr << "ERROR: Ciphertext to be at least the 96 bytes (nonce size), got " << ciphertext_size
-                 << "\n";
+            string error = "ERROR: Ciphertext to be at least the 96 bytes (nonce size), got "_hidden;
+            cerr << error << ciphertext_size << "\n";
             exit(1);
         }
 
@@ -200,7 +202,8 @@ template<class T> class AEAD
         // Validate nonce size
         size_t nonce_size = nonce.size();
         if (nonce_size != NONCE_BYTE_LEN) {
-            cerr << "ERROR: Nonce must be 96-bits, got " << nonce_size << ".\n";
+            string error = "ERROR: Nonce must be 96-bits, got "_hidden;
+            cerr << error << nonce_size << ".\n";
             exit(1);
         }
 
@@ -208,10 +211,12 @@ template<class T> class AEAD
         u64 plaintext_size = plaintext.size();
         u64 aad_size = aad.size();
         if (plaintext_size > MAX_DATA_SIZE) {
-            cerr << "ERROR: Plaintext must be < 64GB, got " << plaintext_size << ".\n";
+            string error = "ERROR: Plaintext must be < 64GB, got "_hidden;
+            cerr << error << plaintext_size << ".\n";
             exit(1);
         } else if (aad_size > MAX_DATA_SIZE) {
-            cerr << "ERROR: Authenticated data must be < 64GB, got " << aad_size << ".\n";
+            string error = "ERROR: Authenticated data must be < 64GB, got "_hidden;
+            cerr << error << aad_size << ".\n";
             exit(1);
         }
     }
@@ -302,8 +307,10 @@ template<class T> class AEAD
         ciphertext = vector<u8>(ciphertext.begin(), ciphertext.end() - pad_len);
 
         // Authenticate TODO: Create custom authentication exception
-        if (!equal(actual.begin(), actual.end(), tag.begin()))
-            throw runtime_error("AEAD authentication failed");
+        if (!equal(actual.begin(), actual.end(), tag.begin())) {
+            string msg = "AEAD authentication failed"_hidden;
+            throw runtime_error(msg);
+        }
     }
 
     /**
