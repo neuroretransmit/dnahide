@@ -178,7 +178,29 @@ static void steg_data(const string& password, const string& aad, const string& i
     }
 }
 
-// TODO: Capture piped input
+static string parse_dna(const string& data)
+{
+    istringstream iss(data);
+    string line;
+    bool origin_found = false;
+    stringstream dna_ss;
+
+    while (getline(iss, line)) {
+        if (line.rfind("ORIGIN"_hidden, 0) == 0) {
+            origin_found = true;
+            continue;
+        } else if (origin_found) {
+            for (char& c : line) {
+                if (c == 'T' || c == 'A' || c == 'G' || c == 'C') {
+                    dna_ss << c;
+                }
+            }
+        }
+    }
+
+    return dna_ss.str();
+}
+
 static void unsteg_data(const string& password, const string& aad, const string& input_file,
                         const string& output_file)
 {
@@ -202,26 +224,11 @@ static void unsteg_data(const string& password, const string& aad, const string&
         cout << endl << footer;
     }
 
-    string tmp;
-    istringstream iss(data);
-    string locus_pattern("LOCUS.*"), accession_pattern("ACCESSION.*"), base_count_pattern("BASE COUNT.*"),
-        origin_pattern("ORIGIN.*"), row_number_pattern("\\d+"), dna_pattern("([TAGC]{1,10})"),
-        whitespace_pattern("\\s+");
-    regex locus_regex(locus_pattern), accession_regex(accession_pattern),
-        base_count_regex(base_count_pattern), origin_regex(origin_pattern),
-        row_number_regex(row_number_pattern), dna_regex(dna_pattern), whitespace_regex(whitespace_pattern);
-    tmp = regex_replace(data, locus_regex, "");
-    tmp = regex_replace(tmp, accession_regex, "");
-    tmp = regex_replace(tmp, base_count_regex, "");
-    tmp = regex_replace(tmp, origin_regex, "");
-    tmp = regex_replace(tmp, row_number_regex, "");
-    tmp = regex_replace(tmp, dna_regex, "$1");
-    tmp = regex_replace(tmp, whitespace_regex, "");
-    data = tmp;
-
     string decoding = "[*] Decoding DNA..."_hidden;
     cerr << decoding << endl;
-    string decoded = dna64::decode(tmp);
+    string dna = parse_dna(data);
+    assert(dna.size() > 0);
+    string decoded = dna64::decode(dna);
     vector<u8> decrypted(decoded.begin(), decoded.end());
 
     if (password != "")
