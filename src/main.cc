@@ -21,7 +21,7 @@
 using namespace std;
 namespace po = boost::program_options;
 
-enum { SUCCESS, ERROR_IN_COMMAND_LINE, ERROR_UNHANDLED_EXCEPTION };
+enum { SUCCESS, ERROR_IN_COMMAND_LINE, ERROR_UNHANDLED_EXCEPTION, INVALID_GENBANK_FILE };
 
 static inline bool file_exists(const string& fname)
 {
@@ -131,6 +131,7 @@ static void steg_data(const string& password, const string& aad, const string& i
                       const string& output_file)
 {
     string data;
+    stringstream ss(data);
     vector<u8> compressed;
     vector<u8> encrypted;
     string dna;
@@ -152,14 +153,14 @@ static void steg_data(const string& password, const string& aad, const string& i
         string footer = "<<< END STEGGED MESSAGE >>>\n\n"_hidden;
         cerr << header;
         for (string line; getline(cin, line);)
-            data += line + "\n";
+            ss << line << endl;
         cerr << endl << footer;
         cerr << endl;
     }
 
     string compressing = "[*] Compressing..."_hidden;
     cerr << compressing << endl;
-    lzma::compress(data, compressed);
+    lzma::compress(ss.str(), compressed);
 
     if (password != "")
         encrypt(encrypted = compressed, password, aad);
@@ -184,6 +185,7 @@ static string parse_dna(const string& data)
     string line;
     bool origin_found = false;
     stringstream dna_ss;
+    const string acceptable = " \n0123456789";
 
     while (getline(iss, line)) {
         if (line.rfind("ORIGIN"_hidden, 0) == 0) {
@@ -191,8 +193,19 @@ static string parse_dna(const string& data)
             continue;
         } else if (origin_found) {
             for (char& c : line) {
-                if (c == 'T' || c == 'A' || c == 'G' || c == 'C') {
+                switch (c) {
+                case 'T':
+                case 'A':
+                case 'G':
+                case 'C':
                     dna_ss << c;
+                    break;
+                default: {
+                    if (acceptable.find(c) == string::npos) {
+                        cerr << " ERROR: invalid GenBank file\n";
+                        exit(INVALID_GENBANK_FILE);
+                    }
+                }
                 }
             }
         }

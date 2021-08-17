@@ -31,10 +31,13 @@ namespace dna64
 
     string encode(const vector<u8>& bytes)
     {
-        string encoded;
+        size_t bytes_len = bytes.size();
+        string ret;
+        ret.reserve((4 * (bytes_len / 3)) * 3);
+        stringstream encoded(ret);
+
         int i = 0, j = 0;
         u8 chunk3b[3], chunk4b[4];
-        size_t bytes_len = bytes.size();
         int bytes_idx = 0;
         while (bytes_len--) {
             chunk3b[i++] = bytes[bytes_idx++];
@@ -45,7 +48,7 @@ namespace dna64
                 chunk4b[2] = ((chunk3b[1] & 0x0f) << 2) + ((chunk3b[2] & 0xc0) >> 6);
                 chunk4b[3] = chunk3b[2] & 0x3f;
                 for (i = 0; i < 4; i++) {
-                    encoded += codons[chunk4b[i]];
+                    encoded << codons[chunk4b[i]];
                 }
                 i = 0;
             }
@@ -58,11 +61,11 @@ namespace dna64
             chunk4b[2] = ((chunk3b[1] & 0x0f) << 2) + ((chunk3b[2] & 0xc0) >> 6);
             chunk4b[3] = chunk3b[2] & 0x3f;
             for (j = 0; j < i + 1; j++) {
-                encoded += codons[chunk4b[j]];
+                encoded << codons[chunk4b[j]];
             }
         }
 
-        return encoded;
+        return encoded.str();
     }
 
     string to_b64(const string& str, int len)
