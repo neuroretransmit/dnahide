@@ -7,6 +7,10 @@ Hide data in GenBank DNA sequence files using authenticated encryption.
 * **Compression**: LZMA
 * **Encryption**: RC6 in GCM-SIV using authenticated data or in CTR using ECB on individual blocks
 
+## Examples
+
+Stegged examples can be found in [examples/](examples/).
+
 ## Usage
 
 ```
