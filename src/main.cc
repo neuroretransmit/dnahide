@@ -11,8 +11,9 @@
 #include <boost/program_options.hpp>
 
 #include "compression.h"
-#include "crypto/aead.h"
-#include "crypto/fastpbkdf2.h"
+#include "crypto/kdf/fastpbkdf2.h"
+#include "crypto/mode/aead.h"
+#include "crypto/mode/ctr.h"
 #include "dna64.h"
 #include "obfuscate.h"
 
@@ -53,30 +54,60 @@ static string read_file(const string& path)
     return string{istreambuf_iterator<char>{input_file}, {}};
 }
 
-static void encrypt(vector<u8>& data, const string& password, const string& aad)
+static void encrypt(vector<u8>& data, const string& password, const string& aad = "")
 {
     string msg = "[*] Encrypting data..."_hidden;
     cerr << msg << endl;
 
-    vector<u8> aad_bytes(aad.begin(), aad.end());
-    vector<u8> kgk(32);
-    fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
-                           15000, kgk.data(), kgk.size());
-    AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.seal(data, aad_bytes, false);
+    if (aad != "") {
+        vector<u8> aad_bytes(aad.begin(), aad.end());
+        vector<u8> kgk(32);
+        fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                               15000, kgk.data(), kgk.size());
+        AEAD<WordSize::BLOCK_128> aead(kgk);
+        aead.seal(data, aad_bytes, false);
+    } else {
+        RC6<WordSize::BLOCK_128> cipher{};
+        ECB<RC6<WordSize::BLOCK_128>> ecb(cipher);
+        CTR<ECB<RC6<WordSize::BLOCK_128>>> ctr(ecb, block_byte_size<WordSize::BLOCK_128>());
+        vector<u8> counter(16);
+        vector<u8> kgk(32);
+        fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                               15000, kgk.data(), kgk.size());
+        size_t padding = pad_to_block_size(data, block_byte_size<WordSize::BLOCK_128>());
+        ctr.crypt_parallel(data, kgk, counter);
+        // Snip padding length
+        data.erase(data.end() - padding, data.end());
+        // Append tag
+        data.insert(data.end(), counter.begin(), counter.end());
+    }
 }
 
-static void decrypt(vector<u8>& data, const string& password, const string& aad)
+static void decrypt(vector<u8>& data, const string& password, const string& aad = "")
 {
     string msg = "[*] Decrypting data..."_hidden;
     cerr << msg << endl;
-    vector<u8> aad_bytes(aad.begin(), aad.end());
-    vector<u8> kgk(32);
-    fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
-                           15000, kgk.data(), kgk.size());
-    // Create AEAD using RC6
-    AEAD<WordSize::BLOCK_128> aead(kgk);
-    aead.open(data, aad_bytes, false);
+
+    if (aad != "") {
+        vector<u8> aad_bytes(aad.begin(), aad.end());
+        vector<u8> kgk(32);
+        fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                               15000, kgk.data(), kgk.size());
+        // Create AEAD using RC6
+        AEAD<WordSize::BLOCK_128> aead(kgk);
+        aead.open(data, aad_bytes, false);
+    } else {
+        vector<u8> tag(data.end() - block_byte_size<WordSize::BLOCK_128>(), data.end());
+        RC6<WordSize::BLOCK_128> cipher{};
+        ECB<RC6<WordSize::BLOCK_128>> ecb(cipher);
+        CTR<ECB<RC6<WordSize::BLOCK_128>>> ctr(ecb, block_byte_size<WordSize::BLOCK_128>());
+        vector<u8> counter(16);
+        vector<u8> kgk(32);
+        fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
+                               15000, kgk.data(), kgk.size());
+        pad_to_block_size(data, block_byte_size<WordSize::BLOCK_128>());
+        ctr.crypt_parallel(data, kgk, counter);
+    }
 }
 
 static string create_genbank_flatfile(const string& dna)
@@ -131,7 +162,7 @@ static void steg_data(const string& password, const string& aad, const string& i
                       const string& output_file)
 {
     string data;
-    stringstream ss(data);
+    stringstream ss;
     vector<u8> compressed;
     vector<u8> encrypted;
     string dna;
@@ -162,8 +193,12 @@ static void steg_data(const string& password, const string& aad, const string& i
     cerr << compressing << endl;
     lzma::compress(data == "" ? ss.str() : data, compressed);
 
-    if (password != "")
-        encrypt(encrypted = compressed, password, aad);
+    if (password != "") {
+        if (aad != "")
+            encrypt(encrypted = compressed, password, aad);
+        else
+            encrypt(encrypted = compressed, password);
+    }
 
     string encoding = "[*] Encoding DNA..."_hidden;
     cerr << encoding << endl;
@@ -244,8 +279,12 @@ static void unsteg_data(const string& password, const string& aad, const string&
     string decoded = dna64::decode(dna);
     vector<u8> decrypted(decoded.begin(), decoded.end());
 
-    if (password != "")
-        decrypt(decrypted, password, aad);
+    if (password != "") {
+        if (aad != "")
+            decrypt(decrypted, password, aad);
+        else
+            decrypt(decrypted, password);
+    }
 
     string decompressing = "[*] Decompressing data..."_hidden;
     cerr << decompressing << endl;
@@ -277,7 +316,7 @@ int main(int argc, char** argv)
         po::options_description desc("Options");
         desc.add_options()("help,h", "print help messages")("unsteg,u", po::bool_switch(&unsteg),
                                                             "unsteg message")(
-            "input,i", po::value(&input_file), "Input file")("output,o", po::value(&output_file),
+            "input,i", po::value(&input_file), "input file")("output,o", po::value(&output_file),
                                                              "output file")(
             "password,p", po::value(&password), "encryption password")("aad,a", po::value(&aad),
                                                                        "additional authenticated data");
@@ -293,11 +332,6 @@ int main(int argc, char** argv)
             }
 
             po::notify(vm);
-            if (password != "" && aad == "") {
-                string error = "ERROR: must provide authentication data"_hidden;
-                cerr << error << endl;
-                exit(ERROR_IN_COMMAND_LINE);
-            }
 
             if (unsteg)
                 unsteg_data(password, aad, input_file, output_file);

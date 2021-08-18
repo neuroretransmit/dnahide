@@ -5,7 +5,7 @@
 #include <sstream>
 #include <string>
 
-#include "../types.h"
+#include "../../../types.h"
 
 /// Operater for a 64-bit field
 class FieldElement64

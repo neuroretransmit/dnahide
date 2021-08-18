@@ -10,12 +10,12 @@
 #include <random>
 #include <vector>
 
+#include "../rc6.h"
+#include "aead/polyval.h"
 #include "ctr.h"
 #include "ecb.h"
-#include "polyval.h"
-#include "rc6.h"
 
-#include "../obfuscate.h"
+#include "../../obfuscate.h"
 
 using random_bytes_engine = independent_bits_engine<default_random_engine, CHAR_BIT, u8>;
 
@@ -222,22 +222,6 @@ template<class T> class AEAD
     }
 
     /**
-     * Pad plaintext and additional authenticated data to block size
-     * @param plaintext
-     * @param aad: additional authenticated data
-     * @return plaintext padding length
-     */
-    size_t pad_to_block_size(vector<u8>& plaintext, vector<u8>& aad)
-    {
-        size_t plaintext_pad_len;
-        for (plaintext_pad_len = 0; needs_padding(plaintext, BLOCK_BYTE_LEN); plaintext_pad_len++)
-            plaintext.push_back(0);
-        while (needs_padding(aad, BLOCK_BYTE_LEN))
-            aad.push_back(0);
-        return plaintext_pad_len;
-    }
-
-    /**
      * Remove padding and append tag
      * @param ciphertext
      * @param pad_len: number of padded bytes
@@ -267,7 +251,8 @@ template<class T> class AEAD
         derive_keys(authentication_key, encryption_key, nonce);
 
         // Pad plaintext/AAD
-        size_t pad_len = pad_to_block_size(plaintext, aad);
+        size_t pad_len = pad_to_block_size(plaintext, BLOCK_BYTE_LEN);
+        pad_to_block_size(aad, BLOCK_BYTE_LEN);
 
         // Calculate tag
         vector<u8> tag = get_tag(encryption_key, authentication_key, plaintext, aad, nonce);
@@ -326,7 +311,8 @@ template<class T> class AEAD
         ciphertext = vector<u8>(ciphertext.begin(), ciphertext.end() - BLOCK_BYTE_LEN);
 
         // Pad plaintext/AAD
-        size_t pad_len = pad_to_block_size(ciphertext, aad);
+        size_t pad_len = pad_to_block_size(ciphertext, BLOCK_BYTE_LEN);
+        pad_to_block_size(aad, BLOCK_BYTE_LEN);
 
         // Derive keys
         vector<u8> authentication_key;
@@ -342,16 +328,6 @@ template<class T> class AEAD
 
         // Authenticate
         authenticate(ciphertext, encryption_key, authentication_key, aad, nonce, tag, pad_len);
-    }
-
-    /**
-     * Check if byte array needs to be padded to block size
-     * @param bytes: byte array to check
-     * @param block_size: target block size
-     */
-    bool needs_padding(const vector<u8>& bytes, size_t block_size)
-    {
-        return ((bytes.size() < block_size) && block_size - bytes.size()) || (bytes.size() % block_size);
     }
 
     /**

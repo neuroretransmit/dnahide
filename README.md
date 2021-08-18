@@ -5,14 +5,8 @@ Hide data in GenBank DNA sequence files using authenticated encryption.
 ## Info
 
 * **Compression**: LZMA
-* **Encryption**: RC6 in GCM-SIV using authenticated data
-
-### Best Practices
-
-1. Since this project uses an AEAD to authenticate blocks while decrypting, both parties must have a shared secret for the authenticated data.
-
+* **Encryption**: RC6 in GCM-SIV using authenticated data or in CTR using ECB on individual blocks
 * **TODO**: Add secret sharing scheme for exchange of authenticated data
-* **TODO**: Implement unauthenticated mode using RC6 in CTR.
 
 ## Usage
 
@@ -21,7 +15,7 @@ dnahide - hide messages in DNA
 Options:
   -h [ --help ]         print help messages
   -u [ --unsteg ]       unsteg message
-  -i [ --input ] arg    Input file
+  -i [ --input ] arg    input file
   -o [ --output ] arg   output file
   -p [ --password ] arg encryption password
   -a [ --aad ] arg      additional authenticated data
@@ -30,7 +24,7 @@ Options:
 ### Stegging
 
 ```
-$ ./dnahide --input some_file --password test -aad authentication_data
+$ ./dnahide --input some_file --password test --aad authentication_data
 [*] File size: 625 bytes
 [*] Compressing...
 [*] Encrypting data...
@@ -85,4 +79,41 @@ $ ./dnahide --input test.gb --unsteg --password test --aad authentication_data
 ]
 <<< END RECOVERED MESSAGE >>>
 
+```
+
+### Shorthand
+
+**Steg message without encryption**
+```
+./dnahide -i msg -o msg.gb
+```
+
+**Unsteg message without encryption**
+```
+./dnahide -i msg.gb -u -o msg.decoded
+```
+
+**Steg message with encryption**
+```
+./dnahide -i msg -p test -o msg.gb
+```
+
+**Unsteg message with encryption**
+```
+./dnahide -i msg.gb -u -p test -o msg.decoded
+```
+
+**Steg message with authenticated encryption** (where authentication.bin is a shared secret between both parties)
+```
+./dnahide -i msg -p test -a $(cat authentication.bin) -o msg.gb
+```
+
+**Unsteg message with authenticated encryption** (where authentication.bin is a shared secret between both parties)
+```
+./dnahide -i msg.gb -u -p test -a $(cat authentication.bin) -o msg.decoded
+```
+
+**Piped Input**
+```
+echo "test" | ./dnahide -p test -a $(cat authentication.bin) -o msg.decode
 ```

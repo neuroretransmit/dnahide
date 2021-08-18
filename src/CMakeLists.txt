@@ -1,4 +1,4 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wextra -Os")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wextra -O3 -g")
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Boost 1.71 REQUIRED COMPONENTS program_options)
 # Search OpenSSL
@@ -18,7 +18,7 @@ find_package(ZLIB REQUIRED)
 find_package(Threads REQUIRED)
 include_directories(${Boost_INCLUDE_DIR} ${OpenSSL_INCLUDE_DIR})
 
-add_executable(dnahide main.cc crypto/fastbpkdf2.c)
+add_executable(dnahide main.cc crypto/kdf/fastbpkdf2.c)
 target_link_libraries(dnahide PRIVATE Threads::Threads ${Boost_LIBRARIES} ${OPENSSL_LIBRARIES} ZLIB::ZLIB)
 
 install(TARGETS dnahide RUNTIME DESTINATION bin)

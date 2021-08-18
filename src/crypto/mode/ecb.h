@@ -3,8 +3,8 @@
 #include <iterator>
 #include <vector>
 
-#include "../types.h"
-#include "../util.h"
+#include "../../types.h"
+#include "../../util.h"
 
 /// Electronic Code Book mode of operation
 template<class T> class ECB : CipherInterface<T>
@@ -16,7 +16,7 @@ template<class T> class ECB : CipherInterface<T>
     {
         size_t offset = 0;
         for (auto block = data.begin(); block != data.end(); block += BLOCK_SIZE, offset += BLOCK_SIZE) {
-            vector<u8> chunk = slice(data, offset, offset + BLOCK_SIZE);
+            vector<u8> chunk = vector<u8>(block, block + BLOCK_SIZE);
             cipher.encrypt(chunk, key);
 
             for (size_t i = 0; i < BLOCK_SIZE; i++)
@@ -28,7 +28,7 @@ template<class T> class ECB : CipherInterface<T>
     {
         size_t offset = 0;
         for (auto block = data.begin(); block != data.end(); block += BLOCK_SIZE, offset += BLOCK_SIZE) {
-            vector<u8> chunk = slice(data, offset, offset + BLOCK_SIZE);
+            vector<u8> chunk = vector<u8>(block, block + BLOCK_SIZE);
             cipher.decrypt(chunk, key);
 
             for (size_t i = 0; i < BLOCK_SIZE; i++)
