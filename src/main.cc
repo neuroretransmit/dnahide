@@ -160,7 +160,7 @@ static void steg_data(const string& password, const string& aad, const string& i
 
     string compressing = "[*] Compressing..."_hidden;
     cerr << compressing << endl;
-    lzma::compress(ss.str(), compressed);
+    lzma::compress(data == "" ? ss.str() : data, compressed);
 
     if (password != "")
         encrypt(encrypted = compressed, password, aad);

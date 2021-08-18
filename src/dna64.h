@@ -32,9 +32,7 @@ namespace dna64
     string encode(const vector<u8>& bytes)
     {
         size_t bytes_len = bytes.size();
-        string ret;
-        ret.reserve((4 * (bytes_len / 3)) * 3);
-        stringstream encoded(ret);
+        stringstream encoded;
 
         int i = 0, j = 0;
         u8 chunk3b[3], chunk4b[4];
