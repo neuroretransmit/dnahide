@@ -1,4 +1,4 @@
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wextra -O3 -g")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wextra -Os -s")
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Boost 1.71 REQUIRED COMPONENTS program_options)
 # Search OpenSSL

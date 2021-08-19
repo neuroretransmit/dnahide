@@ -237,7 +237,8 @@ static string parse_dna(const string& data)
                     break;
                 default: {
                     if (acceptable.find(c) == string::npos) {
-                        cerr << " ERROR: invalid GenBank file\n";
+                        string error = " ERROR: invalid GenBank file"_hidden;
+                        cerr << error << endl;
                         exit(INVALID_GENBANK_FILE);
                     }
                 }
@@ -313,17 +314,27 @@ int main(int argc, char** argv)
     string aad = "";
 
     try {
-        po::options_description desc("Options");
-        desc.add_options()("help,h", "print help messages")("unsteg,u", po::bool_switch(&unsteg),
-                                                            "unsteg message")(
-            "input,i", po::value(&input_file), "input file")("output,o", po::value(&output_file),
-                                                             "output file")(
-            "password,p", po::value(&password), "encryption password")("aad,a", po::value(&aad),
-                                                                       "additional authenticated data");
+        string options = "dnahide options"_hidden;
+        string help_switches = "help,h"_hidden, help_message = "print usage"_hidden;
+        string unsteg_switches = "unsteg,u"_hidden, unsteg_message = "unsteg message"_hidden;
+        string input_switches = "input,i"_hidden, input_message = "input file"_hidden;
+        string output_switches = "output,o"_hidden, output_message = "output file"_hidden;
+        string password_switches = "password,p"_hidden, password_message = "encryption password"_hidden;
+        string aad_switches = "aad,a"_hidden, aad_message = "additional authenticated data"_hidden;
+
+        po::options_description desc(options);
+        // clang-format off
+        desc.add_options()(help_switches.c_str(), help_message.c_str())(
+            unsteg_switches.c_str(), po::bool_switch(&unsteg),
+            unsteg_message.c_str())(input_switches.c_str(), po::value(&input_file), input_message.c_str())(
+            output_switches.c_str(), po::value(&output_file), output_message.c_str())(
+            password_switches.c_str(), po::value(&password),
+            password_message.c_str())(aad_switches.c_str(), po::value(&aad), aad_message.c_str());
+        // clang-format on
+
         po::variables_map vm;
 
         try {
-            // TODO: Validations of invalid switch combinations
             po::store(po::parse_command_line(argc, argv, desc), vm);
 
             if (vm.count("help") || vm.count("h") || argc == 1) {
