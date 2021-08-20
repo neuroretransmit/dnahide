@@ -65,7 +65,7 @@ static void encrypt(vector<u8>& data, const string& password, const string& aad 
         fastpbkdf2_hmac_sha256((u8*) password.data(), password.size(), (u8*) password.data(), password.size(),
                                15000, kgk.data(), kgk.size());
         AEAD<WordSize::BLOCK_128> aead(kgk);
-        aead.seal(data, aad_bytes, false);
+        aead.seal(data, aad_bytes, true);
     } else {
         RC6<WordSize::BLOCK_128> cipher{};
         ECB<RC6<WordSize::BLOCK_128>> ecb(cipher);
@@ -95,7 +95,7 @@ static void decrypt(vector<u8>& data, const string& password, const string& aad 
                                15000, kgk.data(), kgk.size());
         // Create AEAD using RC6
         AEAD<WordSize::BLOCK_128> aead(kgk);
-        aead.open(data, aad_bytes, false);
+        aead.open(data, aad_bytes, true);
     } else {
         vector<u8> tag(data.end() - block_byte_size<WordSize::BLOCK_128>(), data.end());
         RC6<WordSize::BLOCK_128> cipher{};
@@ -159,7 +159,7 @@ static string create_genbank_flatfile(const string& dna)
 }
 
 static void steg_data(const string& password, const string& aad, const string& input_file,
-                      const string& output_file)
+                      const string& output_file, bool disable_compression)
 {
     string data;
     stringstream ss;
@@ -189,20 +189,28 @@ static void steg_data(const string& password, const string& aad, const string& i
         cerr << endl;
     }
 
-    string compressing = "[*] Compressing..."_hidden;
-    cerr << compressing << endl;
-    lzma::compress(data == "" ? ss.str() : data, compressed);
+    // If read from stdin
+    if (data == "")
+        data = ss.str();
+
+    vector<u8> input_data(data.begin(), data.end());
+
+    if (!disable_compression) {
+        string compressing = "[*] Compressing..."_hidden;
+        cerr << compressing << endl;
+        lzma::compress(data, compressed);
+    }
 
     if (password != "") {
         if (aad != "")
-            encrypt(encrypted = compressed, password, aad);
+            encrypt(encrypted = disable_compression ? input_data : compressed, password, aad);
         else
-            encrypt(encrypted = compressed, password);
+            encrypt(encrypted = disable_compression ? input_data : compressed, password);
     }
 
     string encoding = "[*] Encoding DNA..."_hidden;
     cerr << encoding << endl;
-    dna = dna64::encode(password != "" ? encrypted : compressed);
+    dna = dna64::encode(password != "" ? encrypted : (disable_compression ? input_data : compressed));
     dna = create_genbank_flatfile(dna);
 
     if (output_file != "") {
@@ -235,13 +243,12 @@ static string parse_dna(const string& data)
                 case 'C':
                     dna_ss << c;
                     break;
-                default: {
+                default:
                     if (acceptable.find(c) == string::npos) {
                         string error = " ERROR: invalid GenBank file"_hidden;
                         cerr << error << endl;
                         exit(INVALID_GENBANK_FILE);
                     }
-                }
                 }
             }
         }
@@ -251,7 +258,7 @@ static string parse_dna(const string& data)
 }
 
 static void unsteg_data(const string& password, const string& aad, const string& input_file,
-                        const string& output_file)
+                        const string& output_file, bool disable_compression)
 {
     string data = "";
 
@@ -287,20 +294,30 @@ static void unsteg_data(const string& password, const string& aad, const string&
             decrypt(decrypted, password);
     }
 
-    string decompressing = "[*] Decompressing data..."_hidden;
-    cerr << decompressing << endl;
-    vector<u8> decompressed(decrypted.size() * 4);
-    size_t decompressed_size = lzma::decompress(decrypted, decompressed);
+    size_t decompressed_size = 0;
+    vector<u8> decompressed;
+    if (!disable_compression) {
+        string decompressing = "[*] Decompressing data..."_hidden;
+        cerr << decompressing << endl;
+        decompressed = vector<u8>(decrypted.size() * 4);
+        decompressed_size = lzma::decompress(decrypted, decompressed);
+    }
 
     if (output_file != "") {
         ofstream ofs(output_file, ios_base::out | ios_base::binary);
-        ofs.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
+        if (!disable_compression)
+            ofs.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
+        else
+            ofs.write(reinterpret_cast<const char*>(decrypted.data()), decrypted.size());
         ofs.close();
     } else {
         string header = "<<< BEGIN RECOVERED MESSAGE >>>"_hidden;
         string footer = "<<< END RECOVERED MESSAGE >>>"_hidden;
         cerr << endl << header << endl << endl;
-        cout.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
+        if (!disable_compression)
+            cout.write(reinterpret_cast<const char*>(decompressed.data()), decompressed_size);
+        else
+            cout.write(reinterpret_cast<const char*>(decrypted.data()), decrypted.size());
         cerr << endl << footer << endl;
     }
 }
@@ -312,6 +329,7 @@ int main(int argc, char** argv)
     string output_file = "";
     string input_file = "";
     string aad = "";
+    bool disable_compression = false;
 
     try {
         string options = "dnahide options"_hidden;
@@ -319,8 +337,10 @@ int main(int argc, char** argv)
         string unsteg_switches = "unsteg,u"_hidden, unsteg_message = "unsteg message"_hidden;
         string input_switches = "input,i"_hidden, input_message = "input file"_hidden;
         string output_switches = "output,o"_hidden, output_message = "output file"_hidden;
-        string password_switches = "password,p"_hidden, password_message = "encryption password"_hidden;
+        string pass_switches = "password,p"_hidden, pass_message = "encryption password"_hidden;
         string aad_switches = "aad,a"_hidden, aad_message = "additional authenticated data"_hidden;
+        string disable_compression_switches = "disable-compression,dc"_hidden,
+               disable_compression_message = "disable compression"_hidden;
 
         po::options_description desc(options);
         // clang-format off
@@ -328,8 +348,9 @@ int main(int argc, char** argv)
             unsteg_switches.c_str(), po::bool_switch(&unsteg),
             unsteg_message.c_str())(input_switches.c_str(), po::value(&input_file), input_message.c_str())(
             output_switches.c_str(), po::value(&output_file), output_message.c_str())(
-            password_switches.c_str(), po::value(&password),
-            password_message.c_str())(aad_switches.c_str(), po::value(&aad), aad_message.c_str());
+            pass_switches.c_str(), po::value(&password), pass_message.c_str())(
+            aad_switches.c_str(), po::value(&aad), aad_message.c_str())(
+            disable_compression_switches.c_str(), po::bool_switch(&disable_compression), disable_compression_message.c_str());
         // clang-format on
 
         po::variables_map vm;
@@ -345,9 +366,9 @@ int main(int argc, char** argv)
             po::notify(vm);
 
             if (unsteg)
-                unsteg_data(password, aad, input_file, output_file);
+                unsteg_data(password, aad, input_file, output_file, disable_compression);
             else
-                steg_data(password, aad, input_file, output_file);
+                steg_data(password, aad, input_file, output_file, disable_compression);
         } catch (po::error& e) {
             string pre = "ERROR: "_hidden;
             cerr << pre << e.what() << endl << endl;
