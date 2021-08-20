@@ -15,13 +15,14 @@ Stegged examples can be found in [examples/](examples/).
 
 ```
 dnahide - hide messages in DNA
-Options:
-  -h [ --help ]         print help messages
-  -u [ --unsteg ]       unsteg message
-  -i [ --input ] arg    input file
-  -o [ --output ] arg   output file
-  -p [ --password ] arg encryption password
-  -a [ --aad ] arg      additional authenticated data
+dnahide options:
+  -h [ --help ]          print usage
+  -u [ --unsteg ]        unsteg message
+  -i [ --input ] arg     input file
+  -o [ --output ] arg    output file
+  -p [ --password ] arg  encryption password
+  -a [ --aad ] arg       additional authenticated data
+  --disable-compression  disable compression
 ```
 
 ### Stegging
