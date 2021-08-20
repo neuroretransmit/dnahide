@@ -15,6 +15,7 @@
 #include "crypto/mode/aead.h"
 #include "crypto/mode/ctr.h"
 #include "dna64.h"
+#include "genbank.h"
 #include "obfuscate.h"
 
 /** TODO: Validate GenBank DNA sequence file format unstegging */
@@ -24,34 +25,10 @@ namespace po = boost::program_options;
 
 enum { SUCCESS, ERROR_IN_COMMAND_LINE, ERROR_UNHANDLED_EXCEPTION, INVALID_GENBANK_FILE };
 
-static inline bool file_exists(const string& fname)
-{
-    struct stat buffer;
-    return (stat(fname.c_str(), &buffer) == 0);
-}
-
-static inline size_t file_size(const char* filename)
-{
-    ifstream in(filename, ifstream::ate | ifstream::binary);
-    return in.tellg();
-}
-
 static void help(const po::options_description& desc)
 {
     string msg = "dnahide - hide messages in DNA"_hidden;
     cout << msg << endl << desc << endl;
-}
-
-static string read_file(const string& path)
-{
-    ifstream input_file(path);
-    string pre = "Could not open the file - '"_hidden;
-    string post = "'"_hidden;
-    if (!input_file.is_open()) {
-        cerr << pre << path << post << endl;
-        exit(EXIT_FAILURE);
-    }
-    return string{istreambuf_iterator<char>{input_file}, {}};
 }
 
 static void encrypt(vector<u8>& data, const string& password, const string& aad = "")
@@ -108,54 +85,6 @@ static void decrypt(vector<u8>& data, const string& password, const string& aad 
         pad_to_block_size(data, block_byte_size<WordSize::BLOCK_128>());
         ctr.crypt_parallel(data, kgk, counter);
     }
-}
-
-static string create_genbank_flatfile(const string& dna)
-{
-    stringstream ss;
-    random_device rd;                                   // obtain a random number from hardware
-    mt19937 gen(rd());                                  // seed the generator
-    uniform_int_distribution<> distr(0000000, 9999999); // define the range
-    int accession = distr(gen);
-
-    // Generate metadata
-    // TODO: Lookup GXP codes/PAX6/human and add DESCRIPTION section
-    string locus_header = "LOCUS"_hidden;
-    string gxp = "GXP_"_hidden;
-    string human = "(PAX6/human) "_hidden;
-    string bp = " bp "_hidden;
-    string dna_header = "DNA"_hidden;
-    string accession_header = "ACCESSION"_hidden;
-    string base_count = "BASE COUNT"_hidden;
-    string t = " t "_hidden, a = " a "_hidden, g = " g "_hidden, c = " c "_hidden;
-    string origin_header = "ORIGIN"_hidden;
-    ss << setw(12) << left << locus_header << gxp << accession << human << setw(4) << dna.length() << bp
-       << setw(5) << dna_header << endl
-       << setw(12) << left << accession_header << gxp << accession << endl
-       << setw(12) << left << base_count << setw(3) << left << count(dna.begin(), dna.end(), 'A') << a
-       << setw(3) << left << count(dna.begin(), dna.end(), 'C') << c << setw(3) << left
-       << count(dna.begin(), dna.end(), 'G') << g << setw(3) << left << count(dna.begin(), dna.end(), 'T')
-       << t << endl
-       << origin_header << endl
-       << left;
-
-    int len = 10;
-    int num_substr = dna.length() / len;
-    vector<string> split;
-    for (auto i = 0; i <= num_substr; i++)
-        split.push_back(dna.substr(i * len, len));
-
-    size_t j = 0;
-    for (size_t i = 0; i < split.size(); i++) {
-        ss << setw(9) << right << j + 1 << " ";
-        for (j = 0; i < split.size(); j += 10, i += 1) {
-            if (j != 0 && !(j % 60))
-                ss << endl << setw(9) << right << j + 1 << " ";
-            ss << setw(2) << split[i] << " ";
-        }
-    }
-
-    return ss.str();
 }
 
 static void steg_data(const string& password, const string& aad, const string& input_file,
@@ -222,41 +151,6 @@ static void steg_data(const string& password, const string& aad, const string& i
     }
 }
 
-static string parse_dna(const string& data)
-{
-    istringstream iss(data);
-    string line;
-    bool origin_found = false;
-    stringstream dna_ss;
-    const string acceptable = " \n0123456789";
-
-    while (getline(iss, line)) {
-        if (line.rfind("ORIGIN"_hidden, 0) == 0) {
-            origin_found = true;
-            continue;
-        } else if (origin_found) {
-            for (char& c : line) {
-                switch (c) {
-                case 'T':
-                case 'A':
-                case 'G':
-                case 'C':
-                    dna_ss << c;
-                    break;
-                default:
-                    if (acceptable.find(c) == string::npos) {
-                        string error = " ERROR: invalid GenBank file"_hidden;
-                        cerr << error << endl;
-                        exit(INVALID_GENBANK_FILE);
-                    }
-                }
-            }
-        }
-    }
-
-    return dna_ss.str();
-}
-
 static void unsteg_data(const string& password, const string& aad, const string& input_file,
                         const string& output_file, bool disable_compression)
 {
@@ -283,7 +177,8 @@ static void unsteg_data(const string& password, const string& aad, const string&
     string decoding = "[*] Decoding DNA..."_hidden;
     cerr << decoding << endl;
     string dna = parse_dna(data);
-    assert(dna.size() > 0);
+    if (dna.size() == 0)
+        exit(INVALID_GENBANK_FILE);
     string decoded = dna64::decode(dna);
     vector<u8> decrypted(decoded.begin(), decoded.end());
 
@@ -339,7 +234,7 @@ int main(int argc, char** argv)
         string output_switches = "output,o"_hidden, output_message = "output file"_hidden;
         string pass_switches = "password,p"_hidden, pass_message = "encryption password"_hidden;
         string aad_switches = "aad,a"_hidden, aad_message = "additional authenticated data"_hidden;
-        string disable_compression_switches = "disable-compression,dc"_hidden,
+        string disable_compression_switches = "disable-compression"_hidden,
                disable_compression_message = "disable compression"_hidden;
 
         po::options_description desc(options);

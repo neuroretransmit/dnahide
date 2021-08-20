@@ -28,3 +28,27 @@ size_t pad_to_block_size(vector<u8>& data, size_t block_byte_len)
         data.push_back(0);
     return plaintext_pad_len;
 }
+
+inline bool file_exists(const string& fname)
+{
+    struct stat buffer;
+    return (stat(fname.c_str(), &buffer) == 0);
+}
+
+inline size_t file_size(const char* filename)
+{
+    ifstream in(filename, ifstream::ate | ifstream::binary);
+    return in.tellg();
+}
+
+static string read_file(const string& path)
+{
+    ifstream input_file(path);
+    string pre = "Could not open the file - '"_hidden;
+    string post = "'"_hidden;
+    if (!input_file.is_open()) {
+        cerr << pre << path << post << endl;
+        exit(EXIT_FAILURE);
+    }
+    return string{istreambuf_iterator<char>{input_file}, {}};
+}
